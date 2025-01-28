@@ -34,11 +34,6 @@ properties:
             port:
               format: int32
               type: integer
-            targetPort:
-              anyOf:
-                - type: integer
-                - type: string
-              x-kubernetes-int-or-string: true
           required:
             - port
           type: object
@@ -64,6 +59,16 @@ properties:
     required:
       - selector
     type: object
+  creationTime:
+    type: string
+    description: 'Time at which the resource was created'
+    format: date-time
+    example: '0001-01-01T00:00:00Z'
+  modificationTime:
+    type: string
+    description: 'Time at which the resource was updated'
+    format: date-time
+    example: '0001-01-01T00:00:00Z'
   status:
     description: Status is the current status of the Kuma MeshMultiZoneService resource.
     properties:

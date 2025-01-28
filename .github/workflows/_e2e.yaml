@@ -28,13 +28,13 @@ jobs:
       matrix:
         parallelRunnerId: ${{ fromJSON((fromJSON(inputs.matrix).parallelism == '4' && '[0, 1, 2, 3]') || '[0]') }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
         with:
           go-version-file: go.mod
-      - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: |
             ${{ env.CI_TOOLS_DIR }}
@@ -57,9 +57,13 @@ jobs:
           make build
       - run: |
           make -j build/distributions
-      - run: |
-          make -j images
-          make -j docker/save
+      - uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e # v3.0.0
+        id: retry
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15s
+          timeout_minutes: 30
+          command: make -j images && make -j docker/save
       - run: |
           make dev/set-kuma-helm-repo
       - name: "Enable ipv6 for docker"
@@ -69,7 +73,6 @@ jobs:
           {
             "ipv6": true,
             "fixed-cidr-v6": "2001:db8:1::/64",
-            "dns": ["8.8.8.8"],
             "dns-search": ["."]
           }
           EOF
@@ -77,6 +80,7 @@ jobs:
       - name: "Run E2E tests"
         env:
           DOCKERHUB_PULL_CREDENTIAL: ${{ secrets.DOCKERHUB_PULL_CREDENTIAL }}
+          KUMA_DEBUG: ${{ runner.debug == '1' }}
         run: |
           if [[ "${{ env.E2E_PARAM_K8S_VERSION }}" == "kindIpv6" ]]; then
             export IPV6=true
@@ -126,11 +130,19 @@ jobs:
             target="test/e2e"
           fi
           make ${MAKE_PARAMETERS} CI=true "${target}"
-      - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         if: always()
         with:
-          name: e2e-debug-${{ env.E2E_PARAM_TARGET }}
+          name: e2e-debug-${{ env.E2E_PARAM_TARGET }}-${{ env.E2E_PARAM_ARCH }}-${{ env.E2E_PARAM_K8S_VERSION }}-${{ env.E2E_PARAM_CNI_NETWORK_PLUGIN }}-${{ env.E2E_PARAM_SIDECAR_CONTAINERS }}-${{ matrix.parallelRunnerId }}
           if-no-files-found: ignore
           path: |
             /tmp/e2e-debug/
-          retention-days: ${{ github.event_name == 'pull_request' && 1 || 30 }}
+          retention-days: ${{ github.event_name == 'pull_request' && 5 || 10 }}
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        if: always()
+        with:
+          name: e2e-reports-${{ env.E2E_PARAM_TARGET }}-${{ env.E2E_PARAM_ARCH }}-${{ env.E2E_PARAM_K8S_VERSION }}-${{ env.E2E_PARAM_CNI_NETWORK_PLUGIN }}-${{ env.E2E_PARAM_SIDECAR_CONTAINERS }}-${{ matrix.parallelRunnerId }}
+          if-no-files-found: ignore
+          path: |
+            build/reports
+          retention-days: ${{ github.event_name == 'pull_request' && 5 || 10 }}

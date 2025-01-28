@@ -45,22 +45,24 @@ spec:
 			Install(Namespace(externalServicesNamespace)).
 			Install(MTLSMeshKubernetes(meshName)).
 			Install(MeshTrafficPermissionAllowAllKubernetes(meshName)).
-			Install(testserver.Install(
-				testserver.WithName("test-server-1"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-				testserver.WithEchoArgs("echo", "--instance", "test-server-1"),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("test-server-2"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-				testserver.WithEchoArgs("echo", "--instance", "test-server-2"),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("external-service"),
-				testserver.WithNamespace(externalServicesNamespace),
-				testserver.WithEchoArgs("echo", "--instance", "external-service"),
+			Install(Parallel(
+				testserver.Install(
+					testserver.WithName("test-server-1"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+					testserver.WithEchoArgs("echo", "--instance", "test-server-1"),
+				),
+				testserver.Install(
+					testserver.WithName("test-server-2"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+					testserver.WithEchoArgs("echo", "--instance", "test-server-2"),
+				),
+				testserver.Install(
+					testserver.WithName("external-service"),
+					testserver.WithNamespace(externalServicesNamespace),
+					testserver.WithEchoArgs("echo", "--instance", "external-service"),
+				),
 			)).
 			Install(YamlK8s(externalService))
 		Expect(setup.Setup(kubernetes.Cluster)).To(Succeed())
@@ -119,7 +121,7 @@ kind: Gateway
 metadata:
   name: %s
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   gatewayClassName: ha-kuma
@@ -168,7 +170,7 @@ kind: Gateway
 metadata:
   name: %s
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   gatewayClassName: kuma
@@ -214,7 +216,7 @@ kind: HTTPRoute
 metadata:
   name: test-server-paths
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   parentRefs:
@@ -269,7 +271,7 @@ kind: HTTPRoute
 metadata:
   name: test-server-1
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   parentRefs:
@@ -286,7 +288,7 @@ kind: HTTPRoute
 metadata:
   name: test-server-2
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   parentRefs:
@@ -332,7 +334,7 @@ kind: HTTPRoute
 metadata:
   name: external-service
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   parentRefs:
@@ -388,7 +390,7 @@ kind: Gateway
 metadata:
   name: %s
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   gatewayClassName: kuma
@@ -428,7 +430,7 @@ kind: HTTPRoute
 metadata:
   name: test-server-paths
   namespace: %s
-  annotations:
+  labels:
     kuma.io/mesh: %s
 spec:
   parentRefs:

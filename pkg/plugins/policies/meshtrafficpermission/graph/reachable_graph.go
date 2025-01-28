@@ -29,7 +29,7 @@ func (r *Graph) CanReach(fromTags map[string]string, toTags map[string]string) b
 		// we cannot compute graph for cross mesh, so it's better to allow the traffic
 		return true
 	}
-	rule := r.rules[toTags[mesh_proto.ServiceTag]].Compute(core_rules.SubsetFromTags(fromTags))
+	rule := r.rules[toTags[mesh_proto.ServiceTag]].Compute(fromTags)
 	if rule == nil {
 		return false
 	}
@@ -38,14 +38,14 @@ func (r *Graph) CanReach(fromTags map[string]string, toTags map[string]string) b
 }
 
 func (r *Graph) CanReachBackend(fromTags map[string]string, backendIdentifier core_model.TypedResourceIdentifier) bool {
-	if backendIdentifier.ResourceType == core_model.ResourceType(common_api.MeshExternalService) {
+	if backendIdentifier.ResourceType == core_model.ResourceType(common_api.MeshExternalService) || backendIdentifier.ResourceType == core_model.ResourceType(common_api.MeshMultiZoneService) {
 		return true
 	}
 	noPort := core_model.TypedResourceIdentifier{
 		ResourceIdentifier: backendIdentifier.ResourceIdentifier,
 		ResourceType:       backendIdentifier.ResourceType,
 	}
-	rule := r.backendRules[noPort].Compute(core_rules.SubsetFromTags(fromTags))
+	rule := r.backendRules[noPort].Compute(fromTags)
 	if rule == nil {
 		return false
 	}

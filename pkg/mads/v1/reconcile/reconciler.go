@@ -2,39 +2,33 @@ package reconcile
 
 import (
 	"context"
-	"maps"
-	"sync"
+	"sync/atomic"
 
-	envoy_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
 	util_xds_v3 "github.com/kumahq/kuma/pkg/util/xds/v3"
 )
 
-func NewReconciler(hasher envoy_cache.NodeHash, cache util_xds_v3.SnapshotCache, generator *SnapshotGenerator, versioner util_xds_v3.SnapshotVersioner) Reconciler {
-	return &reconciler{
-		hasher:              hasher,
-		cache:               cache,
-		generator:           generator,
-		versioner:           versioner,
-		knownClientIds:      map[string]bool{},
-		knownClientIdsMutex: &sync.Mutex{},
+func NewReconciler(cache envoy_cache.SnapshotCache, generator *SnapshotGenerator) Reconciler {
+	r := &reconciler{
+		cache:          cache,
+		generator:      generator,
+		knownClientIds: atomic.Pointer[[]string]{},
 	}
+	base := []string{}
+	r.knownClientIds.Store(&base)
+	return r
 }
 
 type reconciler struct {
-	hasher              envoy_cache.NodeHash
-	cache               util_xds_v3.SnapshotCache
-	generator           *SnapshotGenerator
-	versioner           util_xds_v3.SnapshotVersioner
-	knownClientIds      map[string]bool
-	knownClientIdsMutex *sync.Mutex
+	cache          envoy_cache.SnapshotCache
+	generator      *SnapshotGenerator
+	knownClientIds atomic.Pointer[[]string]
 }
 
-func (r *reconciler) KnownClientIds() map[string]bool {
-	r.knownClientIdsMutex.Lock()
-	defer r.knownClientIdsMutex.Unlock()
-	return maps.Clone(r.knownClientIds)
+func (r *reconciler) KnownClientIds() []string {
+	p := r.knownClientIds.Load()
+	return *p
 }
 
 func (r *reconciler) Reconcile(ctx context.Context) error {
@@ -42,27 +36,25 @@ func (r *reconciler) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	knownClients := map[string]bool{}
+	knownClients := []string{}
 	for clientId, newSnapshot := range newSnapshotPerClient {
-		knownClients[clientId] = true
-		if err := newSnapshot.Consistent(); err != nil {
-			return err
+		knownClients = append(knownClients, clientId)
+		var snap envoy_cache.ResourceSnapshot
+		oldSnapshot, _ := r.cache.GetSnapshot(clientId)
+		switch {
+		case oldSnapshot == nil:
+			snap = newSnapshot
+		case !util_xds_v3.SingleTypeSnapshotEqual(oldSnapshot, newSnapshot):
+			snap = newSnapshot
+		default:
+			snap = oldSnapshot
 		}
-		old, _ := r.cache.GetSnapshot(clientId)
-		newSnapshot = r.versioner.Version(newSnapshot, old)
-		err := r.cache.SetSnapshot(clientId, newSnapshot)
+		err := r.cache.SetSnapshot(ctx, clientId, snap)
 		if err != nil {
 			return err
 		}
 	}
 
-	r.knownClientIdsMutex.Lock()
-	r.knownClientIds = knownClients
-	r.knownClientIdsMutex.Unlock()
+	r.knownClientIds.Store(&knownClients)
 	return nil
-}
-
-func (r *reconciler) NeedsReconciliation(node *envoy_core.Node) bool {
-	id := r.hasher.ID(node)
-	return !r.cache.HasSnapshot(id)
 }

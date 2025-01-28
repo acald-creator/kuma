@@ -6,38 +6,49 @@ import (
 	"github.com/kumahq/kuma/pkg/core/resources/apis/mesh"
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
 	"github.com/kumahq/kuma/pkg/core/validators"
+	"github.com/kumahq/kuma/pkg/util/pointer"
 )
 
 func (r *MeshTimeoutResource) validate() error {
 	var verr validators.ValidationError
 	path := validators.RootedAt("spec")
 	verr.AddErrorAt(path.Field("targetRef"), r.validateTop(r.Spec.TargetRef))
-	if len(r.Spec.To) == 0 && len(r.Spec.From) == 0 {
-		verr.AddViolationAt(path, "at least one of 'from', 'to' has to be defined")
+	if len(r.Spec.Rules) > 0 && (len(r.Spec.To) > 0 || len(r.Spec.From) > 0) {
+		verr.AddViolationAt(path, "fields 'to' and 'from' must be empty when 'rules' is defined")
 	}
-	verr.AddErrorAt(path, validateFrom(r.Spec.From, r.Spec.TargetRef.Kind))
-	verr.AddErrorAt(path, validateTo(r.Spec.To, r.Spec.TargetRef.Kind))
+	if len(r.Spec.To) == 0 && len(r.Spec.From) == 0 && len(r.Spec.Rules) == 0 {
+		verr.AddViolationAt(path, "at least one of 'from', 'to' or 'rules' has to be defined")
+	}
+	topLevel := pointer.DerefOr(r.Spec.TargetRef, common_api.TargetRef{Kind: common_api.Mesh})
+	verr.AddErrorAt(path, validateFrom(r.Spec.From, topLevel.Kind))
+	verr.AddErrorAt(path, validateTo(r.Spec.To, topLevel.Kind))
 	return verr.OrNil()
 }
 
-func (r *MeshTimeoutResource) validateTop(targetRef common_api.TargetRef) validators.ValidationError {
+func (r *MeshTimeoutResource) validateTop(targetRef *common_api.TargetRef) validators.ValidationError {
+	if targetRef == nil {
+		return validators.ValidationError{}
+	}
 	switch core_model.PolicyRole(r.GetMeta()) {
 	case mesh_proto.SystemPolicyRole:
-		return mesh.ValidateTargetRef(targetRef, &mesh.ValidateTargetRefOpts{
+		return mesh.ValidateTargetRef(*targetRef, &mesh.ValidateTargetRefOpts{
 			SupportedKinds: []common_api.TargetRefKind{
 				common_api.Mesh,
 				common_api.MeshSubset,
+				common_api.Dataplane,
 				common_api.MeshGateway,
 				common_api.MeshService,
 				common_api.MeshServiceSubset,
 				common_api.MeshHTTPRoute,
 			},
 			GatewayListenerTagsAllowed: true,
+			IsInboundPolicy:            true,
 		})
 	default:
-		return mesh.ValidateTargetRef(targetRef, &mesh.ValidateTargetRefOpts{
+		return mesh.ValidateTargetRef(*targetRef, &mesh.ValidateTargetRefOpts{
 			SupportedKinds: []common_api.TargetRefKind{
 				common_api.Mesh,
+				common_api.Dataplane,
 				common_api.MeshSubset,
 				common_api.MeshService,
 				common_api.MeshServiceSubset,

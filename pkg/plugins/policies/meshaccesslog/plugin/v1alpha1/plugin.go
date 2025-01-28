@@ -13,6 +13,8 @@ import (
 	xds_types "github.com/kumahq/kuma/pkg/core/xds/types"
 	"github.com/kumahq/kuma/pkg/plugins/policies/core/matchers"
 	core_rules "github.com/kumahq/kuma/pkg/plugins/policies/core/rules"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/outbound"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/subsetutils"
 	policies_xds "github.com/kumahq/kuma/pkg/plugins/policies/core/xds"
 	api "github.com/kumahq/kuma/pkg/plugins/policies/meshaccesslog/api/v1alpha1"
 	plugin_xds "github.com/kumahq/kuma/pkg/plugins/policies/meshaccesslog/plugin/xds"
@@ -67,8 +69,8 @@ func (p plugin) Apply(rs *core_xds.ResourceSet, ctx xds_context.Context, proxy *
 		return err
 	}
 
-	if err := plugin_xds.HandleClusters(*endpoints, rs, proxy); err != nil {
-		return errors.Wrap(err, "unable to handle clusters for policy")
+	if err := plugin_xds.AddLogBackendConf(*endpoints, rs, proxy); err != nil {
+		return errors.Wrap(err, "unable to add configuration for MeshAccessLog backends")
 	}
 
 	return nil
@@ -112,7 +114,7 @@ func applyToOutbounds(
 
 		serviceName := outbound.LegacyOutbound.GetService()
 
-		if err := configureOutbound(rules.Rules, dataplane, core_rules.MeshService(serviceName), serviceName, listener, backends, path); err != nil {
+		if err := configureOutbound(rules.Rules, dataplane, subsetutils.MeshServiceElement(serviceName), serviceName, listener, backends, path); err != nil {
 			return err
 		}
 	}
@@ -128,7 +130,7 @@ func applyToTransparentProxyListeners(
 		if err := configureOutbound(
 			policies.ToRules.Rules,
 			dataplane,
-			core_rules.MeshService(core_mesh.PassThroughService),
+			subsetutils.MeshServiceElement(core_mesh.PassThroughService),
 			"external",
 			ipv4,
 			backends,
@@ -142,7 +144,7 @@ func applyToTransparentProxyListeners(
 		return configureOutbound(
 			policies.ToRules.Rules,
 			dataplane,
-			core_rules.MeshService(core_mesh.PassThroughService),
+			subsetutils.MeshServiceElement(core_mesh.PassThroughService),
 			"external",
 			ipv6,
 			backends,
@@ -162,7 +164,7 @@ func applyToDirectAccess(
 		return configureOutbound(
 			rules.Rules,
 			dataplane,
-			core_rules.MeshService(core_mesh.PassThroughService),
+			subsetutils.MeshServiceElement(core_mesh.PassThroughService),
 			name,
 			listener,
 			backends,
@@ -207,9 +209,9 @@ func applyToGateway(
 
 		if toListenerRules, ok := rules.ToRules.ByListener[listenerKey]; ok {
 			if err := configureOutbound(
-				toListenerRules,
+				toListenerRules.Rules,
 				proxy.Dataplane,
-				core_rules.Subset{},
+				subsetutils.MeshElement(),
 				mesh_proto.MatchAllTag,
 				listener,
 				backends,
@@ -239,7 +241,7 @@ func configureInbound(
 	serviceName := dataplane.Spec.GetIdentifyingService()
 
 	// `from` section of MeshAccessLog only allows Mesh targetRef
-	conf := core_rules.ComputeConf[api.Conf](fromRules, core_rules.MeshSubset())
+	conf := core_rules.ComputeConf[api.Conf](fromRules, subsetutils.MeshElement())
 	if conf == nil {
 		return nil
 	}
@@ -268,7 +270,7 @@ func configureInbound(
 func configureOutbound(
 	toRules core_rules.Rules,
 	dataplane *core_mesh.DataplaneResource,
-	subset core_rules.Subset,
+	element subsetutils.Element,
 	destinationServiceName string,
 	listener *envoy_listener.Listener,
 	backendsAcc *plugin_xds.EndpointAccumulator,
@@ -276,7 +278,7 @@ func configureOutbound(
 ) error {
 	sourceService := dataplane.Spec.GetIdentifyingService()
 
-	conf := core_rules.ComputeConf[api.Conf](toRules, subset)
+	conf := core_rules.ComputeConf[api.Conf](toRules, element)
 	if conf == nil {
 		return nil
 	}
@@ -302,7 +304,7 @@ func configureOutbound(
 	return nil
 }
 
-func applyToRealResources(rs *core_xds.ResourceSet, rules core_rules.ResourceRules, meshCtx xds_context.MeshContext, dataplane *core_mesh.DataplaneResource, backendsAcc *plugin_xds.EndpointAccumulator, accessLogSocketPath string) error {
+func applyToRealResources(rs *core_xds.ResourceSet, rules outbound.ResourceRules, meshCtx xds_context.MeshContext, dataplane *core_mesh.DataplaneResource, backendsAcc *plugin_xds.EndpointAccumulator, accessLogSocketPath string) error {
 	for uri, resType := range rs.IndexByOrigin() {
 		conf := rules.Compute(uri, meshCtx.Resources)
 		if conf == nil {

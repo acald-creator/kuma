@@ -13,6 +13,8 @@ import (
 	xds_types "github.com/kumahq/kuma/pkg/core/xds/types"
 	"github.com/kumahq/kuma/pkg/plugins/policies/core/matchers"
 	core_rules "github.com/kumahq/kuma/pkg/plugins/policies/core/rules"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/outbound"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/subsetutils"
 	"github.com/kumahq/kuma/pkg/plugins/policies/core/xds"
 	api "github.com/kumahq/kuma/pkg/plugins/policies/meshtimeout/api/v1alpha1"
 	plugin_xds "github.com/kumahq/kuma/pkg/plugins/policies/meshtimeout/plugin/xds"
@@ -91,9 +93,9 @@ func applyToInbounds(fromRules core_rules.FromRules, inboundListeners map[core_r
 		}
 
 		protocol := core_mesh.ParseProtocol(inbound.GetProtocol())
-		conf := getConf(fromRules.Rules[listenerKey], core_rules.MeshSubset())
+		conf := getConf(fromRules.Rules[listenerKey], subsetutils.MeshElement())
 		if conf == nil {
-			conf = &plugin_xds.DefaultTimeoutConf
+			continue
 		}
 		configurer := plugin_xds.ListenerConfigurer{
 			Conf:     *conf,
@@ -137,7 +139,7 @@ func applyToOutbounds(
 		configurer := plugin_xds.DeprecatedListenerConfigurer{
 			Rules:    rules.Rules,
 			Protocol: meshCtx.GetServiceProtocol(serviceName),
-			Subset:   core_rules.MeshService(serviceName),
+			Element:  subsetutils.MeshServiceElement(serviceName),
 		}
 
 		if err := configurer.ConfigureListener(listener); err != nil {
@@ -154,7 +156,7 @@ func applyToClusters(
 	protocol core_mesh.Protocol,
 	clusters ...*envoy_cluster.Cluster,
 ) error {
-	conf := getConf(rules, core_rules.MeshService(serviceName))
+	conf := getConf(rules, subsetutils.MeshServiceElement(serviceName))
 	if conf == nil {
 		return nil
 	}
@@ -182,7 +184,7 @@ func applyToGateway(
 			Port:    listenerInfo.Listener.Port,
 		}
 
-		conf := getConf(gatewayRules.FromRules[key], core_rules.MeshSubset())
+		conf := getConf(gatewayRules.FromRules[key], subsetutils.MeshElement())
 		if err := plugin_xds.ConfigureGatewayListener(
 			conf,
 			listenerInfo.Listener.Protocol,
@@ -196,14 +198,14 @@ func applyToGateway(
 			continue
 		}
 
-		conf = getConf(toRules, core_rules.MeshSubset())
+		conf = getConf(toRules.Rules, subsetutils.MeshElement())
 		for _, listenerHostname := range listenerInfo.ListenerHostnames {
 			route, ok := gatewayRoutes[listenerHostname.EnvoyRouteName(listenerInfo.Listener.EnvoyListenerName)]
 
 			if ok {
 				for _, vh := range route.VirtualHosts {
 					for _, r := range vh.Routes {
-						routeConf := getConf(toRules, core_rules.MeshSubset().WithTag(core_rules.RuleMatchesHashTag, r.Name, false))
+						routeConf := getConf(toRules.Rules, subsetutils.MeshElement().WithKeyValue(core_rules.RuleMatchesHashTag, r.Name))
 						if routeConf == nil {
 							if conf == nil {
 								continue
@@ -236,13 +238,13 @@ func applyToGateway(
 
 					serviceName := dest.Destination[mesh_proto.ServiceTag]
 
-					conf := getConf(toRules, core_rules.MeshService(serviceName))
+					conf := getConf(toRules.Rules, subsetutils.MeshServiceElement(serviceName))
 					if conf == nil {
 						continue
 					}
 
 					if err := applyToClusters(
-						toRules,
+						toRules.Rules,
 						serviceName,
 						meshCtx.GetServiceProtocol(serviceName),
 						cluster,
@@ -259,12 +261,12 @@ func applyToGateway(
 
 func getConf(
 	rules core_rules.Rules,
-	subset core_rules.Subset,
+	element subsetutils.Element,
 ) *api.Conf {
 	if rules == nil {
 		return &api.Conf{}
 	} else {
-		if computed := rules.Compute(subset); computed != nil {
+		if computed := rules.Compute(element); computed != nil {
 			return pointer.To(computed.Conf.(api.Conf))
 		} else {
 			return nil
@@ -280,11 +282,11 @@ func createInboundClusterName(servicePort uint32, listenerPort uint32) string {
 	}
 }
 
-func applyToRealResources(rs *core_xds.ResourceSet, rules core_rules.ResourceRules, meshCtx xds_context.MeshContext) error {
+func applyToRealResources(rs *core_xds.ResourceSet, rules outbound.ResourceRules, meshCtx xds_context.MeshContext) error {
 	for uri, resType := range rs.IndexByOrigin() {
 		conf := rules.Compute(uri, meshCtx.Resources)
 		if conf == nil {
-			conf = &core_rules.ResourceRule{Conf: []interface{}{plugin_xds.DefaultTimeoutConf}}
+			conf = &outbound.ResourceRule{Conf: []interface{}{plugin_xds.DefaultTimeoutConf}}
 		}
 
 		for typ, resources := range resType {

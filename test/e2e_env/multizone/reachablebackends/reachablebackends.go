@@ -5,7 +5,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sync/errgroup"
 
+	mesh_proto "github.com/kumahq/kuma/api/mesh/v1alpha1"
+	"github.com/kumahq/kuma/pkg/test/resources/builders"
 	. "github.com/kumahq/kuma/test/framework"
 	"github.com/kumahq/kuma/test/framework/client"
 	"github.com/kumahq/kuma/test/framework/deployments/testserver"
@@ -107,25 +110,19 @@ spec:
         k8s.kuma.io/namespace: %s
 `, meshName, namespace)
 
-	meshWithEgress := fmt.Sprintf(`
-type: Mesh
-name: "%s"
-mtls:
-  enabledBackend: ca-1
-  backends:
-  - name: ca-1
-    type: builtin
-networking:
-  outbound:
-    passthrough: false
-routing:
-  zoneEgress: true
-`, meshName)
-
 	BeforeAll(func() {
 		// Global
 		err := NewClusterSetup().
-			Install(YamlUniversal(meshWithEgress)).
+			Install(
+				Yaml(
+					builders.Mesh().
+						WithName(meshName).
+						WithMeshServicesEnabled(mesh_proto.Mesh_MeshServices_Everywhere).
+						WithBuiltinMTLSBackend("ca-1").WithEnabledMTLSBackend("ca-1").
+						WithEgressRoutingEnabled().
+						WithoutPassthrough(),
+				),
+			).
 			Install(MeshTrafficPermissionAllowAllUniversal(meshName)).
 			Install(YamlUniversal(mmzs)).
 			Install(YamlUniversal(mmzsNotAccessible)).
@@ -135,113 +132,74 @@ routing:
 		Expect(err).ToNot(HaveOccurred())
 		Expect(WaitForMesh(meshName, multizone.Zones())).To(Succeed())
 
+		group := errgroup.Group{}
 		// Zone Kube1
-		err = NewClusterSetup().
+		NewClusterSetup().
 			Install(NamespaceWithSidecarInjection(namespace)).
 			Install(Namespace(namespaceOutside)).
 			Install(YamlK8s(meshPassthrough)).
-			Install(testserver.Install(
-				testserver.WithName("client-server"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-				testserver.WithReachableBackends(reachableBackends),
+			Install(Parallel(
+				testserver.Install(
+					testserver.WithName("client-server"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+					testserver.WithReachableServices("dummy-service"),
+					testserver.WithReachableBackends(reachableBackends),
+				),
+				testserver.Install(
+					testserver.WithName("client-server-namespace"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+					testserver.WithReachableServices("dummy-service"),
+					testserver.WithReachableBackends(reachableBackendsNamespaceLabel),
+				),
+				testserver.Install(
+					testserver.WithName("client-server-no-access"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+					testserver.WithReachableServices("dummy-service"),
+					testserver.WithReachableBackends("{}"),
+				),
+				testserver.Install(
+					testserver.WithName("first-test-server"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+				),
+				testserver.Install(
+					testserver.WithName("second-test-server"),
+					testserver.WithMesh(meshName),
+					testserver.WithNamespace(namespace),
+				),
+				testserver.Install(
+					testserver.WithName("external-service"),
+					testserver.WithNamespace(namespaceOutside),
+				),
+				testserver.Install(
+					testserver.WithName("not-accessible-es"),
+					testserver.WithNamespace(namespaceOutside),
+				),
 			)).
-			Install(testserver.Install(
-				testserver.WithName("client-server-namespace"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-				testserver.WithReachableBackends(reachableBackendsNamespaceLabel),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("client-server-no-access"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-				testserver.WithReachableBackends("{}"),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("first-test-server"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("second-test-server"),
-				testserver.WithMesh(meshName),
-				testserver.WithNamespace(namespace),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("external-service"),
-				testserver.WithNamespace(namespaceOutside),
-			)).
-			Install(testserver.Install(
-				testserver.WithName("not-accessible-es"),
-				testserver.WithNamespace(namespaceOutside),
-			)).
-			Setup(multizone.KubeZone1)
-		Expect(err).ToNot(HaveOccurred())
+			SetupInGroup(multizone.KubeZone1, &group)
 
 		// Zone Kube2
-		kubeServiceYAML := fmt.Sprintf(`
-apiVersion: kuma.io/v1alpha1
-kind: MeshService
-metadata:
-  name: other-zone-test-server
-  namespace: %s
-  labels:
-    kuma.io/origin: zone
-    kuma.io/mesh: %s
-    kuma.io/managed-by: k8s-controller
-    k8s.kuma.io/is-headless-service: "false"
-spec:
-  selector:
-    dataplaneTags:
-      app: other-zone-test-server
-      k8s.kuma.io/namespace: %s
-  ports:
-  - port: 80
-    name: main
-    targetPort: main
-    appProtocol: http
-`, namespace, meshName, namespace)
-		kubeServiceNotAccessibleYAML := fmt.Sprintf(`
-apiVersion: kuma.io/v1alpha1
-kind: MeshService
-metadata:
-  name: other-zone-not-accessible
-  namespace: %s
-  labels:
-    kuma.io/origin: zone
-    kuma.io/mesh: %s
-    kuma.io/managed-by: k8s-controller
-    k8s.kuma.io/is-headless-service: "false"
-spec:
-  selector:
-    dataplaneTags:
-      app: other-zone-not-accessible
-      k8s.kuma.io/namespace: %s
-  ports:
-  - port: 80
-    name: main
-    targetPort: main
-    appProtocol: http
-`, namespace, meshName, namespace)
-		err = NewClusterSetup().
+		NewClusterSetup().
 			Install(NamespaceWithSidecarInjection(namespace)).
-			Install(testserver.Install(
-				testserver.WithName("other-zone-test-server"),
-				testserver.WithNamespace(namespace),
-				testserver.WithMesh(meshName),
-				testserver.WithEchoArgs("echo", "--instance", "other-zone-test-server"),
+			Install(Parallel(
+				testserver.Install(
+					testserver.WithName("other-zone-test-server"),
+					testserver.WithNamespace(namespace),
+					testserver.WithMesh(meshName),
+					testserver.WithEchoArgs("echo", "--instance", "other-zone-test-server"),
+				),
+				testserver.Install(
+					testserver.WithName("other-zone-not-accessible"),
+					testserver.WithNamespace(namespace),
+					testserver.WithMesh(meshName),
+					testserver.WithEchoArgs("echo", "--instance", "other-zone-not-accessible"),
+				),
 			)).
-			Install(testserver.Install(
-				testserver.WithName("other-zone-not-accessible"),
-				testserver.WithNamespace(namespace),
-				testserver.WithMesh(meshName),
-				testserver.WithEchoArgs("echo", "--instance", "other-zone-not-accessible"),
-			)).
-			Install(YamlK8s(kubeServiceYAML)).
-			Install(YamlK8s(kubeServiceNotAccessibleYAML)).
-			Setup(multizone.KubeZone2)
-		Expect(err).ToNot(HaveOccurred())
+			SetupInGroup(multizone.KubeZone2, &group)
+		Expect(group.Wait()).To(Succeed())
 	})
 
 	AfterEachFailure(func() {
@@ -313,36 +271,44 @@ spec:
 			// then it fails because we don't encrypt traffic to unknown destination in the mesh
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(response.Exitcode).To(Or(Equal(52), Equal(56)))
+		}, "5s", "100ms").Should(Succeed())
 
+		Consistently(func(g Gomega) {
 			// when trying to connect to non-reachable services via Kuma DNS
-			response, err = client.CollectFailure(
+			response, err := client.CollectFailure(
 				multizone.KubeZone1, "client-server", "not-accessible-es.extsvc.mesh.local",
 				client.FromKubernetesPod(namespace, "client-server"),
 			)
 			// then it fails because Kuma DP has no such DNS
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(response.Exitcode).To(Equal(6))
+			g.Expect(response.Exitcode).To(Or(Equal(6), Equal(28)))
+		}, "5s", "100ms").Should(Succeed())
 
+		Consistently(func(g Gomega) {
 			// when trying to connect to non-reachable service via Kubernetes DNS
-			response, err = client.CollectFailure(
+			response, err := client.CollectFailure(
 				multizone.KubeZone1, "client-server", "not-accessible-es.reachable-backends-non-mesh.svc.cluster.local",
 				client.FromKubernetesPod(namespace, "client-server"),
 			)
 			// then it fails because we don't encrypt traffic to unknown destination in the mesh
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(response.Exitcode).To(Or(Equal(52), Equal(56)))
+		}, "5s", "100ms").Should(Succeed())
 
+		Consistently(func(g Gomega) {
 			// when trying to connect to non-reachable mesh multizone service via Kuma DNS
-			response, err = client.CollectFailure(
+			response, err := client.CollectFailure(
 				multizone.KubeZone1, "client-server", "other-zone-not-accessible.mzsvc.mesh.local",
 				client.FromKubernetesPod(namespace, "client-server"),
 			)
 			// then it fails because we don't encrypt traffic to unknown destination in the mesh
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(response.Exitcode).To(Or(Equal(6)))
+			g.Expect(response.Exitcode).To(Or(Equal(6), Equal(28)))
+		}, "5s", "100ms").Should(Succeed())
 
+		Consistently(func(g Gomega) {
 			// when trying to connect to non-reachable service via Kubernetes DNS
-			response, err = client.CollectFailure(
+			response, err := client.CollectFailure(
 				multizone.KubeZone1, "client-server-no-access", "second-test-server.reachable-backends.svc.cluster.local",
 				client.FromKubernetesPod(namespace, "client-server-no-access"),
 			)

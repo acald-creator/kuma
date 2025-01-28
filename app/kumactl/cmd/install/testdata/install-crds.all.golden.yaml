@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: circuitbreakers.kuma.io
 spec:
   group: kuma.io
@@ -54,7 +54,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: containerpatches.kuma.io
 spec:
   group: kuma.io
@@ -168,7 +168,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: dataplaneinsights.kuma.io
 spec:
   group: kuma.io
@@ -218,7 +218,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: dataplanes.kuma.io
 spec:
   group: kuma.io
@@ -228,6 +228,8 @@ spec:
     kind: Dataplane
     listKind: DataplaneList
     plural: dataplanes
+    shortNames:
+    - dp
     singular: dataplane
   scope: Namespaced
   versions:
@@ -288,7 +290,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: externalservices.kuma.io
 spec:
   group: kuma.io
@@ -338,7 +340,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: faultinjections.kuma.io
 spec:
   group: kuma.io
@@ -388,7 +390,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: healthchecks.kuma.io
 spec:
   group: kuma.io
@@ -438,7 +440,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: hostnamegenerators.kuma.io
 spec:
   group: kuma.io
@@ -448,6 +450,8 @@ spec:
     kind: HostnameGenerator
     listKind: HostnameGeneratorList
     plural: hostnamegenerators
+    shortNames:
+    - hg
     singular: hostnamegenerator
   scope: Namespaced
   versions:
@@ -510,7 +514,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshaccesslogs.kuma.io
 spec:
   group: kuma.io
@@ -520,6 +524,8 @@ spec:
     kind: MeshAccessLog
     listKind: MeshAccessLogList
     plural: meshaccesslogs
+    shortNames:
+    - mal
     singular: meshaccesslog
   scope: Namespaced
   versions:
@@ -724,6 +730,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -791,6 +798,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -1007,6 +1015,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -1057,8 +1066,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -1069,7 +1076,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshcircuitbreakers.kuma.io
 spec:
   group: kuma.io
@@ -1079,6 +1086,8 @@ spec:
     kind: MeshCircuitBreaker
     listKind: MeshCircuitBreakerList
     plural: meshcircuitbreakers
+    shortNames:
+    - mcb
     singular: meshcircuitbreaker
   scope: Namespaced
   versions:
@@ -1374,6 +1383,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -1441,6 +1451,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -1748,6 +1759,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -1798,8 +1810,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -1810,7 +1820,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshes.kuma.io
 spec:
   group: kuma.io
@@ -1820,6 +1830,8 @@ spec:
     kind: Mesh
     listKind: MeshList
     plural: meshes
+    shortNames:
+    - m
     singular: mesh
   scope: Cluster
   versions:
@@ -1860,7 +1872,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshexternalservices.kuma.io
 spec:
   group: kuma.io
@@ -1870,10 +1882,16 @@ spec:
     kind: MeshExternalService
     listKind: MeshExternalServiceList
     plural: meshexternalservices
+    shortNames:
+    - extsvc
     singular: meshexternalservice
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.addresses[0].hostname
+      name: Hostname
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -1905,9 +1923,8 @@ spec:
                   properties:
                     address:
                       description: Address defines an address to which a user want
-                        to send a request. Is possible to provide `domain`, `ip` and
-                        `unix` sockets.
-                      example: unix:///tmp/example.sock
+                        to send a request. Is possible to provide `domain`, `ip`.
+                      example: example.com
                       minLength: 1
                       type: string
                     port:
@@ -1917,6 +1934,7 @@ spec:
                       type: integer
                   required:
                   - address
+                  - port
                   type: object
                 type: array
               extension:
@@ -2183,12 +2201,13 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshfaultinjections.kuma.io
 spec:
   group: kuma.io
@@ -2198,6 +2217,8 @@ spec:
     kind: MeshFaultInjection
     listKind: MeshFaultInjectionList
     plural: meshfaultinjections
+    shortNames:
+    - mfi
     singular: meshfaultinjection
   scope: Namespaced
   versions:
@@ -2334,6 +2355,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -2401,6 +2423,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -2548,6 +2571,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -2598,8 +2622,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -2610,7 +2632,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshgatewayconfigs.kuma.io
 spec:
   group: kuma.io
@@ -2837,7 +2859,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshgatewayinstances.kuma.io
 spec:
   group: kuma.io
@@ -3147,6 +3169,8 @@ spec:
                             Ports is a list of records of service ports
                             If used, every port defined in the service should have an entry in it
                           items:
+                            description: PortStatus represents the error condition
+                              of a service port
                             properties:
                               error:
                                 description: |-
@@ -3191,7 +3215,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshgatewayroutes.kuma.io
 spec:
   group: kuma.io
@@ -3241,7 +3265,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshgateways.kuma.io
 spec:
   group: kuma.io
@@ -3251,6 +3275,8 @@ spec:
     kind: MeshGateway
     listKind: MeshGatewayList
     plural: meshgateways
+    shortNames:
+    - mgw
     singular: meshgateway
   scope: Cluster
   versions:
@@ -3291,7 +3317,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshhealthchecks.kuma.io
 spec:
   group: kuma.io
@@ -3301,6 +3327,8 @@ spec:
     kind: MeshHealthCheck
     listKind: MeshHealthCheckList
     plural: meshhealthchecks
+    shortNames:
+    - mhc
     singular: meshhealthcheck
   scope: Namespaced
   versions:
@@ -3352,6 +3380,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -3613,6 +3642,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -3663,8 +3693,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -3675,7 +3703,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshhttproutes.kuma.io
 spec:
   group: kuma.io
@@ -3685,6 +3713,8 @@ spec:
     kind: MeshHTTPRoute
     listKind: MeshHTTPRouteList
     plural: meshhttproutes
+    shortNames:
+    - mhttpr
     singular: meshhttproute
   scope: Namespaced
   versions:
@@ -3736,6 +3766,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -3823,6 +3854,7 @@ spec:
                                       - MeshMultiZoneService
                                       - MeshServiceSubset
                                       - MeshHTTPRoute
+                                      - Dataplane
                                       type: string
                                     labels:
                                       additionalProperties:
@@ -3950,6 +3982,7 @@ spec:
                                               - MeshMultiZoneService
                                               - MeshServiceSubset
                                               - MeshHTTPRoute
+                                              - Dataplane
                                               type: string
                                             labels:
                                               additionalProperties:
@@ -4285,6 +4318,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -4343,7 +4377,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshinsights.kuma.io
 spec:
   group: kuma.io
@@ -4393,7 +4427,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshloadbalancingstrategies.kuma.io
 spec:
   group: kuma.io
@@ -4403,6 +4437,8 @@ spec:
     kind: MeshLoadBalancingStrategy
     listKind: MeshLoadBalancingStrategyList
     plural: meshloadbalancingstrategies
+    shortNames:
+    - mlbs
     singular: meshloadbalancingstrategy
   scope: Namespaced
   versions:
@@ -4455,6 +4491,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -4625,6 +4662,7 @@ spec:
                                         enum:
                                         - Header
                                         - Cookie
+                                        - Connection
                                         - SourceIP
                                         - QueryParameter
                                         - FilterState
@@ -4746,6 +4784,7 @@ spec:
                                         enum:
                                         - Header
                                         - Cookie
+                                        - Connection
                                         - SourceIP
                                         - QueryParameter
                                         - FilterState
@@ -4905,6 +4944,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -4955,8 +4995,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -4967,7 +5005,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshmetrics.kuma.io
 spec:
   group: kuma.io
@@ -4977,6 +5015,8 @@ spec:
     kind: MeshMetric
     listKind: MeshMetricList
     plural: meshmetrics
+    shortNames:
+    - mm
     singular: meshmetric
   scope: Namespaced
   versions:
@@ -5203,6 +5243,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -5249,8 +5290,6 @@ spec:
                       `MeshSubset` and `MeshServiceSubset`
                     type: object
                 type: object
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -5261,7 +5300,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshmultizoneservices.kuma.io
 spec:
   group: kuma.io
@@ -5271,10 +5310,16 @@ spec:
     kind: MeshMultiZoneService
     listKind: MeshMultiZoneServiceList
     plural: meshmultizoneservices
+    shortNames:
+    - mzsvc
     singular: meshmultizoneservice
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.addresses[0].hostname
+      name: Hostname
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -5312,11 +5357,6 @@ spec:
                     port:
                       format: int32
                       type: integer
-                    targetPort:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      x-kubernetes-int-or-string: true
                   required:
                   - port
                   type: object
@@ -5455,12 +5495,13 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshpassthroughs.kuma.io
 spec:
   group: kuma.io
@@ -5470,6 +5511,8 @@ spec:
     kind: MeshPassthrough
     listKind: MeshPassthroughList
     plural: meshpassthroughs
+    shortNames:
+    - mp
     singular: meshpassthrough
   scope: Namespaced
   versions:
@@ -5515,6 +5558,7 @@ spec:
                         port:
                           description: Port defines the port to which a user makes
                             a request.
+                          format: int32
                           type: integer
                         protocol:
                           default: tcp
@@ -5568,6 +5612,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -5614,8 +5659,6 @@ spec:
                       `MeshSubset` and `MeshServiceSubset`
                     type: object
                 type: object
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -5626,7 +5669,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshproxypatches.kuma.io
 spec:
   group: kuma.io
@@ -5636,6 +5679,8 @@ spec:
     kind: MeshProxyPatch
     listKind: MeshProxyPatchList
     plural: meshproxypatches
+    shortNames:
+    - mpp
     singular: meshproxypatch
   scope: Namespaced
   versions:
@@ -6118,6 +6163,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -6166,7 +6212,6 @@ spec:
                 type: object
             required:
             - default
-            - targetRef
             type: object
         type: object
     served: true
@@ -6177,7 +6222,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshratelimits.kuma.io
 spec:
   group: kuma.io
@@ -6187,6 +6232,8 @@ spec:
     kind: MeshRateLimit
     listKind: MeshRateLimitList
     plural: meshratelimits
+    shortNames:
+    - mrl
     singular: meshratelimit
   scope: Namespaced
   versions:
@@ -6362,6 +6409,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -6429,6 +6477,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -6616,6 +6665,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -6666,8 +6716,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -6678,7 +6726,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshretries.kuma.io
 spec:
   group: kuma.io
@@ -6688,6 +6736,8 @@ spec:
     kind: MeshRetry
     listKind: MeshRetryList
     plural: meshretries
+    shortNames:
+    - mr
     singular: meshretry
   scope: Namespaced
   versions:
@@ -6739,6 +6789,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -7125,6 +7176,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -7175,8 +7227,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -7187,7 +7237,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshservices.kuma.io
 spec:
   group: kuma.io
@@ -7197,10 +7247,16 @@ spec:
     kind: MeshService
     listKind: MeshServiceList
     plural: meshservices
+    shortNames:
+    - msvc
     singular: meshservice
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.addresses[0].hostname
+      name: Hostname
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -7395,12 +7451,13 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshtcproutes.kuma.io
 spec:
   group: kuma.io
@@ -7410,6 +7467,8 @@ spec:
     kind: MeshTCPRoute
     listKind: MeshTCPRouteList
     plural: meshtcproutes
+    shortNames:
+    - mtcpr
     singular: meshtcproute
   scope: Namespaced
   versions:
@@ -7461,6 +7520,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -7540,6 +7600,7 @@ spec:
                                       - MeshMultiZoneService
                                       - MeshServiceSubset
                                       - MeshHTTPRoute
+                                      - Dataplane
                                       type: string
                                     labels:
                                       additionalProperties:
@@ -7621,6 +7682,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -7672,8 +7734,6 @@ spec:
                   type: object
                 minItems: 1
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -7684,7 +7744,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshtimeouts.kuma.io
 spec:
   group: kuma.io
@@ -7694,6 +7754,8 @@ spec:
     kind: MeshTimeout
     listKind: MeshTimeoutList
     plural: meshtimeouts
+    shortNames:
+    - mt
     singular: meshtimeout
   scope: Namespaced
   versions:
@@ -7801,6 +7863,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -7851,6 +7914,64 @@ spec:
                   - targetRef
                   type: object
                 type: array
+              rules:
+                description: |-
+                  Rules defines inbound timeout configurations. Currently limited to exactly one rule containing
+                  default timeouts that apply to all inbound traffic, as L7 matching is not yet implemented.
+                items:
+                  properties:
+                    default:
+                      description: Default contains configuration of the inbound timeouts
+                      properties:
+                        connectionTimeout:
+                          description: |-
+                            ConnectionTimeout specifies the amount of time proxy will wait for an TCP connection to be established.
+                            Default value is 5 seconds. Cannot be set to 0.
+                          type: string
+                        http:
+                          description: Http provides configuration for HTTP specific
+                            timeouts
+                          properties:
+                            maxConnectionDuration:
+                              description: |-
+                                MaxConnectionDuration is the time after which a connection will be drained and/or closed,
+                                starting from when it was first established. Setting this timeout to 0 will disable it.
+                                Disabled by default.
+                              type: string
+                            maxStreamDuration:
+                              description: |-
+                                MaxStreamDuration is the maximum time that a stream’s lifetime will span.
+                                Setting this timeout to 0 will disable it. Disabled by default.
+                              type: string
+                            requestHeadersTimeout:
+                              description: |-
+                                RequestHeadersTimeout The amount of time that proxy will wait for the request headers to be received. The timer is
+                                activated when the first byte of the headers is received, and is disarmed when the last byte of
+                                the headers has been received. If not specified or set to 0, this timeout is disabled.
+                                Disabled by default.
+                              type: string
+                            requestTimeout:
+                              description: |-
+                                RequestTimeout The amount of time that proxy will wait for the entire request to be received.
+                                The timer is activated when the request is initiated, and is disarmed when the last byte of the request is sent,
+                                OR when the response is initiated. Setting this timeout to 0 will disable it.
+                                Default is 15s.
+                              type: string
+                            streamIdleTimeout:
+                              description: |-
+                                StreamIdleTimeout is the amount of time that proxy will allow a stream to exist with no activity.
+                                Setting this timeout to 0 will disable it. Default is 30m
+                              type: string
+                          type: object
+                        idleTimeout:
+                          description: |-
+                            IdleTimeout is defined as the period in which there are no bytes sent or received on connection
+                            Setting this timeout to 0 will disable it. Be cautious when disabling it because
+                            it can lead to connection leaking. Default value is 1h.
+                          type: string
+                      type: object
+                  type: object
+                type: array
               targetRef:
                 description: |-
                   TargetRef is a reference to the resource the policy takes an effect on.
@@ -7868,6 +7989,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -7987,6 +8109,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -8037,8 +8160,6 @@ spec:
                   - targetRef
                   type: object
                 type: array
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -8049,7 +8170,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshtlses.kuma.io
 spec:
   group: kuma.io
@@ -8059,6 +8180,8 @@ spec:
     kind: MeshTLS
     listKind: MeshTLSList
     plural: meshtlses
+    shortNames:
+    - mtls
     singular: meshtls
   scope: Namespaced
   versions:
@@ -8165,6 +8288,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -8232,6 +8356,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -8278,8 +8403,6 @@ spec:
                       `MeshSubset` and `MeshServiceSubset`
                     type: object
                 type: object
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -8290,7 +8413,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshtraces.kuma.io
 spec:
   group: kuma.io
@@ -8300,6 +8423,8 @@ spec:
     kind: MeshTrace
     listKind: MeshTraceList
     plural: meshtraces
+    shortNames:
+    - mtr
     singular: meshtrace
   scope: Namespaced
   versions:
@@ -8429,7 +8554,7 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        default: 100%
+                        default: 100
                         description: |-
                           Target percentage of requests that will be force traced if the
                           'x-client-trace-id' header is set. Mirror of client_sampling in Envoy
@@ -8440,13 +8565,13 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        default: 100%
+                        default: 100
                         description: |-
                           Target percentage of requests will be traced
                           after all other sampling checks have been applied (client, force tracing,
                           random sampling). This field functions as an upper limit on the total
-                          configured sampling rate. For instance, setting client_sampling to 100%
-                          but overall_sampling to 1% will result in only 1% of client requests with
+                          configured sampling rate. For instance, setting client to 100
+                          but overall to 1 will result in only 1% of client requests with
                           the appropriate headers to be force traced. Mirror of
                           overall_sampling in Envoy
                           https://github.com/envoyproxy/envoy/blob/v1.22.0/api/envoy/config/filter/network/http_connection_manager/v2/http_connection_manager.proto#L142-L150
@@ -8456,7 +8581,7 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        default: 100%
+                        default: 100
                         description: |-
                           Target percentage of requests that will be randomly selected for trace
                           generation, if not requested by the client or not forced.
@@ -8517,6 +8642,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -8563,8 +8689,6 @@ spec:
                       `MeshSubset` and `MeshServiceSubset`
                     type: object
                 type: object
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -8575,7 +8699,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: meshtrafficpermissions.kuma.io
 spec:
   group: kuma.io
@@ -8585,6 +8709,8 @@ spec:
     kind: MeshTrafficPermission
     listKind: MeshTrafficPermissionList
     plural: meshtrafficpermissions
+    shortNames:
+    - mtp
     singular: meshtrafficpermission
   scope: Namespaced
   versions:
@@ -8655,6 +8781,7 @@ spec:
                           - MeshMultiZoneService
                           - MeshServiceSubset
                           - MeshHTTPRoute
+                          - Dataplane
                           type: string
                         labels:
                           additionalProperties:
@@ -8722,6 +8849,7 @@ spec:
                     - MeshMultiZoneService
                     - MeshServiceSubset
                     - MeshHTTPRoute
+                    - Dataplane
                     type: string
                   labels:
                     additionalProperties:
@@ -8768,8 +8896,6 @@ spec:
                       `MeshSubset` and `MeshServiceSubset`
                     type: object
                 type: object
-            required:
-            - targetRef
             type: object
         type: object
     served: true
@@ -8780,7 +8906,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: proxytemplates.kuma.io
 spec:
   group: kuma.io
@@ -8830,7 +8956,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: ratelimits.kuma.io
 spec:
   group: kuma.io
@@ -8880,7 +9006,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: retries.kuma.io
 spec:
   group: kuma.io
@@ -8930,7 +9056,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: serviceinsights.kuma.io
 spec:
   group: kuma.io
@@ -8980,7 +9106,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: timeouts.kuma.io
 spec:
   group: kuma.io
@@ -9030,7 +9156,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: trafficlogs.kuma.io
 spec:
   group: kuma.io
@@ -9080,7 +9206,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: trafficpermissions.kuma.io
 spec:
   group: kuma.io
@@ -9130,7 +9256,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: trafficroutes.kuma.io
 spec:
   group: kuma.io
@@ -9180,7 +9306,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: traffictraces.kuma.io
 spec:
   group: kuma.io
@@ -9230,7 +9356,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: virtualoutbounds.kuma.io
 spec:
   group: kuma.io
@@ -9280,7 +9406,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: zoneegresses.kuma.io
 spec:
   group: kuma.io
@@ -9290,6 +9416,8 @@ spec:
     kind: ZoneEgress
     listKind: ZoneEgressList
     plural: zoneegresses
+    shortNames:
+    - ze
     singular: zoneegress
   scope: Namespaced
   versions:
@@ -9336,7 +9464,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: zoneegressinsights.kuma.io
 spec:
   group: kuma.io
@@ -9386,7 +9514,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: zoneingresses.kuma.io
 spec:
   group: kuma.io
@@ -9396,6 +9524,8 @@ spec:
     kind: ZoneIngress
     listKind: ZoneIngressList
     plural: zoneingresses
+    shortNames:
+    - zi
     singular: zoneingress
   scope: Namespaced
   versions:
@@ -9442,7 +9572,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: zoneingressinsights.kuma.io
 spec:
   group: kuma.io
@@ -9493,7 +9623,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: zoneinsights.kuma.io
 spec:
   group: kuma.io
@@ -9543,7 +9673,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: zones.kuma.io
 spec:
   group: kuma.io

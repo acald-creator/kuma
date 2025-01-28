@@ -50,6 +50,7 @@ type ValidateSelectorsOpts struct {
 
 type ValidateTargetRefOpts struct {
 	SupportedKinds             []common_api.TargetRefKind
+	SupportedKindsError        string
 	GatewayListenerTagsAllowed bool
 	// AllowedInvalidNames field allows to provide names that deviate from
 	// standard naming conventions in specific scenarios. I.e. normally,
@@ -63,6 +64,7 @@ type ValidateTargetRefOpts struct {
 	//   includes a forward slash, but it's allowed as an exception to
 	//   handle unresolved references.
 	AllowedInvalidNames []string
+	IsInboundPolicy     bool
 }
 
 func ValidateSelectors(path validators.PathBuilder, sources []*mesh_proto.Selector, opts ValidateSelectorsOpts) validators.ValidationError {
@@ -357,7 +359,11 @@ func ValidateTargetRef(
 		return err
 	}
 	if !slices.Contains(opts.SupportedKinds, ref.Kind) {
-		err.AddViolation("kind", "value is not supported")
+		errMsg := "value is not supported"
+		if optsErr := opts.SupportedKindsError; optsErr != "" {
+			errMsg = optsErr
+		}
+		err.AddViolation("kind", errMsg)
 		return err
 	}
 
@@ -371,6 +377,16 @@ func ValidateTargetRef(
 		err.Add(disallowedField("labels", ref.Labels, ref.Kind))
 		err.Add(disallowedField("namespace", ref.Namespace, ref.Kind))
 		err.Add(disallowedField("sectionName", ref.SectionName, ref.Kind))
+	case common_api.Dataplane:
+		err.Add(disallowedField("tags", ref.Tags, ref.Kind))
+		err.Add(disallowedField("mesh", ref.Mesh, ref.Kind))
+		err.Add(disallowedField("proxyTypes", ref.ProxyTypes, ref.Kind))
+		if len(ref.Labels) > 0 && (ref.Name != "" || ref.Namespace != "") {
+			err.AddViolation("labels", "either labels or name and namespace must be specified")
+		}
+		if !opts.IsInboundPolicy && ref.SectionName != "" {
+			err.AddViolation("sectionName", "can only be used with inbound policies")
+		}
 	case common_api.MeshSubset:
 		err.Add(disallowedField("name", ref.Name, ref.Kind))
 		err.Add(disallowedField("mesh", ref.Mesh, ref.Kind))
@@ -392,17 +408,29 @@ func ValidateTargetRef(
 		if len(ref.Labels) > 0 && ref.SectionName != "" {
 			err.AddViolation("sectionName", "sectionName should not be combined with labels")
 		}
-	case common_api.MeshServiceSubset, common_api.MeshGateway, common_api.MeshExternalService:
+	case common_api.MeshServiceSubset, common_api.MeshGateway:
 		err.Add(requiredField("name", ref.Name, ref.Kind))
 		err.Add(validateName(ref.Name, opts.AllowedInvalidNames))
 		err.Add(disallowedField("mesh", ref.Mesh, ref.Kind))
 		err.Add(disallowedField("proxyTypes", ref.ProxyTypes, ref.Kind))
-		err.Add(ValidateTags(validators.RootedAt("tags"), ref.Tags, ValidateTagsOpts{}))
+		err.Add(ValidateSelector(validators.RootedAt("tags"), ref.Tags, ValidateTagsOpts{}))
 		if ref.Kind == common_api.MeshGateway && len(ref.Tags) > 0 && !opts.GatewayListenerTagsAllowed {
 			err.Add(disallowedField("tags", ref.Tags, ref.Kind))
 		}
 		err.Add(disallowedField("labels", ref.Labels, ref.Kind))
 		err.Add(disallowedField("namespace", ref.Namespace, ref.Kind))
+		err.Add(disallowedField("sectionName", ref.SectionName, ref.Kind))
+	case common_api.MeshExternalService:
+		err.Add(validateName(ref.Name, opts.AllowedInvalidNames))
+		err.Add(disallowedField("mesh", ref.Mesh, ref.Kind))
+		err.Add(disallowedField("tags", ref.Tags, ref.Kind))
+		err.Add(disallowedField("proxyTypes", ref.ProxyTypes, ref.Kind))
+		if len(ref.Labels) == 0 {
+			err.Add(requiredField("name", ref.Name, ref.Kind))
+		}
+		if len(ref.Labels) > 0 && (ref.Name != "" || ref.Namespace != "") {
+			err.AddViolation("labels", "either labels or name must be specified")
+		}
 		err.Add(disallowedField("sectionName", ref.SectionName, ref.Kind))
 	}
 

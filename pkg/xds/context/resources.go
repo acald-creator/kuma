@@ -12,6 +12,7 @@ import (
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
 	"github.com/kumahq/kuma/pkg/core/resources/registry"
 	"github.com/kumahq/kuma/pkg/core/xds"
+	meshfaultinjection_api "github.com/kumahq/kuma/pkg/plugins/policies/meshfaultinjection/api/v1alpha1"
 	"github.com/kumahq/kuma/pkg/util/maps"
 )
 
@@ -146,8 +147,22 @@ func (r Resources) VirtualOutbounds() *core_mesh.VirtualOutboundResourceList {
 	return r.ListOrEmpty(core_mesh.VirtualOutboundType).(*core_mesh.VirtualOutboundResourceList)
 }
 
-func (r Resources) OtherMeshes() *core_mesh.MeshResourceList {
+func (r Resources) MeshFaultInjections() *meshfaultinjection_api.MeshFaultInjectionResourceList {
+	return r.ListOrEmpty(meshfaultinjection_api.MeshFaultInjectionType).(*meshfaultinjection_api.MeshFaultInjectionResourceList)
+}
+
+func (r Resources) Meshes() *core_mesh.MeshResourceList {
 	return r.ListOrEmpty(core_mesh.MeshType).(*core_mesh.MeshResourceList)
+}
+
+func (r Resources) OtherMeshes(localMesh string) *core_mesh.MeshResourceList {
+	otherMeshes := core_mesh.MeshResourceList{}
+	for _, m := range r.Meshes().Items {
+		if m.GetMeta().GetName() != localMesh {
+			otherMeshes.Items = append(otherMeshes.Items, m)
+		}
+	}
+	return &otherMeshes
 }
 
 func (r Resources) MeshServices() *meshsvc.MeshServiceResourceList {
@@ -199,16 +214,19 @@ func (r Resources) gatewaysAndDataplanesForMesh(localMesh *core_mesh.MeshResourc
 		mesh      *core_mesh.MeshResource
 		resources ResourceMap
 	}
-	meshResourcesTuples := []meshResourcesTuple{{
-		mesh:      localMesh,
-		resources: r.MeshLocalResources,
-	}}
 
-	for _, mesh := range r.OtherMeshes().Items {
-		meshName := mesh.GetMeta().GetName()
+	var meshResourcesTuples []meshResourcesTuple
+	for _, mesh := range r.Meshes().Items {
+		var resources ResourceMap
+		switch {
+		case mesh.GetMeta().GetName() == localMesh.GetMeta().GetName():
+			resources = r.MeshLocalResources
+		default:
+			resources = r.CrossMeshResources[mesh.GetMeta().GetName()]
+		}
 		meshResourcesTuples = append(meshResourcesTuples, meshResourcesTuple{
 			mesh:      mesh,
-			resources: r.CrossMeshResources[meshName],
+			resources: resources,
 		})
 	}
 

@@ -11,6 +11,7 @@ import (
 	core_xds "github.com/kumahq/kuma/pkg/core/xds"
 	"github.com/kumahq/kuma/pkg/plugins/policies/core/matchers"
 	core_rules "github.com/kumahq/kuma/pkg/plugins/policies/core/rules"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/subsetutils"
 	"github.com/kumahq/kuma/pkg/plugins/policies/core/xds"
 	api "github.com/kumahq/kuma/pkg/plugins/policies/meshratelimit/api/v1alpha1"
 	plugin_xds "github.com/kumahq/kuma/pkg/plugins/policies/meshratelimit/plugin/xds"
@@ -89,7 +90,7 @@ func applyToGateways(
 				continue
 			}
 
-			if err := configureGateway(rules, gatewayListener, route); err != nil {
+			if err := configureGateway(rules.Rules, gatewayListener, route); err != nil {
 				return err
 			}
 		}
@@ -155,8 +156,8 @@ func applyToEgress(rs *core_xds.ResourceSet, proxy *core_xds.Proxy) error {
 				for _, filterChain := range listeners.Egress.FilterChains {
 					if filterChain.Name == names.GetEgressFilterChainName(esName, meshName) {
 						configurer := plugin_xds.Configurer{
-							Rules:  rule,
-							Subset: core_rules.MeshSubset(),
+							Rules:   rule,
+							Element: subsetutils.MeshElement(),
 						}
 						if err := configurer.ConfigureFilterChain(filterChain); err != nil {
 							return err
@@ -177,7 +178,7 @@ func configure(
 	configurer := plugin_xds.Configurer{
 		Rules: fromRules,
 		// Currently, `from` section of MeshRateLimit only allows Mesh targetRef
-		Subset: core_rules.MeshSubset(),
+		Element: subsetutils.MeshElement(),
 	}
 
 	for _, chain := range listener.FilterChains {
@@ -198,8 +199,8 @@ func configureGateway(
 	route *envoy_route.RouteConfiguration,
 ) error {
 	configurer := plugin_xds.Configurer{
-		Rules:  fromRules,
-		Subset: core_rules.MeshSubset(),
+		Rules:   fromRules,
+		Element: subsetutils.MeshElement(),
 	}
 
 	for _, chain := range listener.FilterChains {

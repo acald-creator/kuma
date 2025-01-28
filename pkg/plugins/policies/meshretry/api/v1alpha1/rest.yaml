@@ -8,6 +8,7 @@ info:
 paths:
   /meshes/{mesh}/meshretries/{name}:
     get:
+      operationId: getMeshRetry
       summary: Returns MeshRetry entity
       tags: [ "MeshRetry" ]
       parameters:
@@ -26,8 +27,11 @@ paths:
       responses:
         '200':
           $ref: "#/components/responses/MeshRetryItem"
+        '404':
+          $ref: "/specs/base/specs/common/error_schema.yaml#/components/responses/NotFound"
 
     put:
+      operationId: putMeshRetry
       summary: Creates or Updates MeshRetry entity
       tags: [ "MeshRetry" ]
       parameters:
@@ -65,6 +69,7 @@ paths:
                 $ref: '#/components/schemas/MeshRetryCreateOrUpdateSuccessResponse'
 
     delete:
+      operationId: deleteMeshRetry
       summary: Deletes MeshRetry entity
       tags: [ "MeshRetry" ]
       parameters:
@@ -82,10 +87,17 @@ paths:
           description: name of the MeshRetry
       responses:
         '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeshRetryDeleteSuccessResponse'
           description: Successful response
+        '404':
+          $ref: "/specs/base/specs/common/error_schema.yaml#/components/responses/NotFound"
 
   /meshes/{mesh}/meshretries:
     get:
+      operationId: getMeshRetryList
       summary: Returns a list of MeshRetry in the mesh.
       tags: [ "MeshRetry" ]
       parameters:
@@ -113,6 +125,9 @@ components:
             Warning messages describe a problem the client making the API request should correct or be aware of.
           items:
             type: string
+    MeshRetryDeleteSuccessResponse:
+      type: object
+      properties: {}
 
   responses:
     MeshRetryItem:
