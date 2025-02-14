@@ -6,7 +6,6 @@ metadata:
   name: mesh-observability
   labels:
     kuma.io/sidecar-injection: disabled
-  annotations:
     kuma.io/mesh: default
 ---
 apiVersion: v1
@@ -11909,6 +11908,7 @@ metadata:
   namespace: mesh-observability
   labels:
     app: grafana
+    kuma.io/mesh: default
 spec:
   type: ClusterIP
   ports:
@@ -11951,6 +11951,7 @@ metadata:
   labels:
     component: "server"
     app: prometheus
+    kuma.io/mesh: default
   name: prometheus-server
   namespace: mesh-observability
 spec:
@@ -12004,7 +12005,7 @@ spec:
               mountPath: /var/lib/grafana/plugins
       containers:
         - name: grafana
-          image: "grafana/grafana:8.5.2"
+          image: "grafana/grafana:11.4.0"
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: config
@@ -12021,7 +12022,6 @@ spec:
               readOnly: true
             - name: plugins-volume
               mountPath: /var/lib/grafana/plugins
-              readOnly: true
           ports:
             - name: service
               containerPort: 80

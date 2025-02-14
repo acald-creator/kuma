@@ -9,6 +9,8 @@ import (
 	core_mesh "github.com/kumahq/kuma/pkg/core/resources/apis/mesh"
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
 	core_rules "github.com/kumahq/kuma/pkg/plugins/policies/core/rules"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/outbound"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/subsetutils"
 	api "github.com/kumahq/kuma/pkg/plugins/policies/meshhttproute/api/v1alpha1"
 	plugin "github.com/kumahq/kuma/pkg/plugins/policies/meshhttproute/plugin/v1alpha1"
 	"github.com/kumahq/kuma/pkg/test/resources/builders"
@@ -39,8 +41,8 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "route-1",
 					},
 					Spec: &api.MeshHTTPRoute{
-						TargetRef: builders.TargetRefMesh(),
-						To: []api.To{{
+						TargetRef: pointer.To(builders.TargetRefMesh()),
+						To: &[]api.To{{
 							TargetRef: builders.TargetRefService("backend"),
 							Rules: []api.Rule{{
 								Matches: []api.Match{{
@@ -61,8 +63,8 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "route-2",
 					},
 					Spec: &api.MeshHTTPRoute{
-						TargetRef: builders.TargetRefService("web"),
-						To: []api.To{{
+						TargetRef: pointer.To(builders.TargetRefService("web")),
+						To: &[]api.To{{
 							TargetRef: builders.TargetRefService("backend"),
 							Rules: []api.Rule{{
 								Matches: []api.Match{{
@@ -100,7 +102,7 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 	expectedRoutes: core_rules.ToRules{
 		Rules: core_rules.Rules{
 			{
-				Subset: core_rules.MeshService("backend"),
+				Subset: subsetutils.MeshService("backend"),
 				Conf: api.PolicyDefault{
 					Rules: []api.Rule{{
 						Matches: []api.Match{{
@@ -141,13 +143,13 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "route-2",
 					},
 				},
-				BackendRefOriginIndex: map[core_rules.MatchesHash]int{
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/v1"}}})): 1,
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/v2"}}})): 1,
+				BackendRefOriginIndex: map[common_api.MatchesHash]int{
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/v1"}}}): 1,
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/v2"}}}): 1,
 				},
 			},
 		},
-		ResourceRules: map[core_model.TypedResourceIdentifier]core_rules.ResourceRule{},
+		ResourceRules: map[core_model.TypedResourceIdentifier]outbound.ResourceRule{},
 	},
 }), Entry("tie-breaking", policiesTestCase{
 	dataplane: samples.DataplaneWeb(),
@@ -160,8 +162,8 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "a-route",
 					},
 					Spec: &api.MeshHTTPRoute{
-						TargetRef: builders.TargetRefMesh(),
-						To: []api.To{{
+						TargetRef: pointer.To(builders.TargetRefMesh()),
+						To: &[]api.To{{
 							TargetRef: builders.TargetRefService("backend"),
 							Rules: []api.Rule{{
 								Matches: []api.Match{{
@@ -185,8 +187,8 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "b-route",
 					},
 					Spec: &api.MeshHTTPRoute{
-						TargetRef: builders.TargetRefMesh(),
-						To: []api.To{{
+						TargetRef: pointer.To(builders.TargetRefMesh()),
+						To: &[]api.To{{
 							TargetRef: builders.TargetRefService("backend"),
 							Rules: []api.Rule{{
 								Matches: []api.Match{{
@@ -211,7 +213,7 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 	expectedRoutes: core_rules.ToRules{
 		Rules: core_rules.Rules{
 			{
-				Subset: core_rules.MeshService("backend"),
+				Subset: subsetutils.MeshService("backend"),
 				Conf: api.PolicyDefault{
 					Rules: []api.Rule{{
 						Matches: []api.Match{{
@@ -238,12 +240,12 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "a-route",
 					},
 				},
-				BackendRefOriginIndex: map[core_rules.MatchesHash]int{
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/v1"}}})): 1,
+				BackendRefOriginIndex: map[common_api.MatchesHash]int{
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/v1"}}}): 1,
 				},
 			},
 		},
-		ResourceRules: map[core_model.TypedResourceIdentifier]core_rules.ResourceRule{},
+		ResourceRules: map[core_model.TypedResourceIdentifier]outbound.ResourceRule{},
 	},
 }), Entry("ordering", policiesTestCase{
 	dataplane: samples.DataplaneWeb(),
@@ -256,8 +258,8 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "a-route",
 					},
 					Spec: &api.MeshHTTPRoute{
-						TargetRef: builders.TargetRefMesh(),
-						To: []api.To{{
+						TargetRef: pointer.To(builders.TargetRefMesh()),
+						To: &[]api.To{{
 							TargetRef: builders.TargetRefService("backend"),
 							Rules: []api.Rule{{
 								Matches: []api.Match{{
@@ -333,8 +335,8 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "b-route",
 					},
 					Spec: &api.MeshHTTPRoute{
-						TargetRef: builders.TargetRefMesh(),
-						To: []api.To{{
+						TargetRef: pointer.To(builders.TargetRefMesh()),
+						To: &[]api.To{{
 							TargetRef: builders.TargetRefService("backend"),
 							Rules: []api.Rule{{
 								Matches: []api.Match{{
@@ -398,7 +400,7 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 	expectedRoutes: core_rules.ToRules{
 		Rules: core_rules.Rules{
 			{
-				Subset: core_rules.MeshService("backend"),
+				Subset: subsetutils.MeshService("backend"),
 				Conf: api.PolicyDefault{
 					Rules: []api.Rule{{
 						Matches: []api.Match{{
@@ -490,17 +492,17 @@ var _ = DescribeTable("MatchedPolicies", func(given policiesTestCase) {
 						Name: "a-route",
 					},
 				},
-				BackendRefOriginIndex: map[core_rules.MatchesHash]int{
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/a-first-prefix"}}})):                 1,
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/a-second-prefix"}}})):                1,
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/b-first-prefix"}}})):                 0,
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/b-second-prefix"}}})):                0,
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/should-be-first-shared-prefix"}}})):  1,
-					core_rules.MatchesHash(api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/should-be-second-shared-prefix"}}})): 1,
+				BackendRefOriginIndex: map[common_api.MatchesHash]int{
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/a-first-prefix"}}}):                 1,
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/a-second-prefix"}}}):                1,
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/b-first-prefix"}}}):                 0,
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/b-second-prefix"}}}):                0,
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/should-be-first-shared-prefix"}}}):  1,
+					api.HashMatches([]api.Match{{Path: &api.PathMatch{Type: api.PathPrefix, Value: "/should-be-second-shared-prefix"}}}): 1,
 				},
 			},
 		},
-		ResourceRules: map[core_model.TypedResourceIdentifier]core_rules.ResourceRule{},
+		ResourceRules: map[core_model.TypedResourceIdentifier]outbound.ResourceRule{},
 	},
 }),
 )

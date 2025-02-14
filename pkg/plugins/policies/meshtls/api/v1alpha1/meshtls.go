@@ -7,15 +7,23 @@ import (
 )
 
 // MeshTLS
-// +kuma:policy:is_policy=true
-// +kuma:policy:plural=MeshTLSes
+// +kuma:policy:singular_display_name=Mesh TLS
+// +kuma:policy:interpret_from_entries_as_rules=true
 type MeshTLS struct {
 	// TargetRef is a reference to the resource the policy takes an effect on.
 	// The resource could be either a real store object or virtual resource
 	// defined in-place.
-	TargetRef common_api.TargetRef `json:"targetRef"`
+	TargetRef *common_api.TargetRef `json:"targetRef,omitempty"`
 	// From list makes a match between clients and corresponding configurations
-	From []From `json:"from,omitempty"`
+	From *[]From `json:"from,omitempty"`
+	// Rules defines inbound tls configurations. Currently limited to
+	// selecting all inbound traffic, as L7 matching is not yet implemented.
+	Rules *[]Rule `json:"rules,omitempty"`
+}
+
+type Rule struct {
+	// Default contains configuration of the inbound tls
+	Default Conf `json:"default,omitempty"`
 }
 
 type From struct {
@@ -26,29 +34,6 @@ type From struct {
 	// 'targetRef'
 	Default Conf `json:"default,omitempty"`
 }
-
-// +kubebuilder:validation:Enum=ECDHE-ECDSA-AES128-GCM-SHA256;ECDHE-ECDSA-AES256-GCM-SHA384;ECDHE-ECDSA-CHACHA20-POLY1305;ECDHE-RSA-AES128-GCM-SHA256;ECDHE-RSA-AES256-GCM-SHA384;ECDHE-RSA-CHACHA20-POLY1305
-type TlsCipher string
-
-const (
-	EcdheEcdsaAes128GcmSha256  TlsCipher = "ECDHE-ECDSA-AES128-GCM-SHA256"
-	EcdheEcdsaAes256GcmSha384  TlsCipher = "ECDHE-ECDSA-AES256-GCM-SHA384"
-	EcdheEcdsaChacha20Poly1305 TlsCipher = "ECDHE-ECDSA-CHACHA20-POLY1305"
-	EcdheRsaAes128GcmSha256    TlsCipher = "ECDHE-RSA-AES128-GCM-SHA256"
-	EcdheRsaAes256GcmSha384    TlsCipher = "ECDHE-RSA-AES256-GCM-SHA384"
-	EcdheRsaChacha20Poly1305   TlsCipher = "ECDHE-RSA-CHACHA20-POLY1305"
-)
-
-var allCiphers = []string{
-	string(EcdheEcdsaAes128GcmSha256),
-	string(EcdheEcdsaAes256GcmSha384),
-	string(EcdheEcdsaChacha20Poly1305),
-	string(EcdheRsaAes128GcmSha256),
-	string(EcdheRsaAes256GcmSha384),
-	string(EcdheRsaChacha20Poly1305),
-}
-
-type TlsCiphers []TlsCipher
 
 // +kubebuilder:validation:Enum=Permissive;Strict
 type Mode string
@@ -65,7 +50,7 @@ type Conf struct {
 	TlsVersion *common_tls.Version `json:"tlsVersion,omitempty"`
 
 	// TlsCiphers section for providing ciphers specification.
-	TlsCiphers TlsCiphers `json:"tlsCiphers,omitempty"`
+	TlsCiphers common_tls.TlsCiphers `json:"tlsCiphers,omitempty"`
 
 	// Mode defines the behavior of inbound listeners with regard to traffic encryption.
 	Mode *Mode `json:"mode,omitempty"`

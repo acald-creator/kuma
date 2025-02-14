@@ -12,6 +12,7 @@ import (
 	core_xds "github.com/kumahq/kuma/pkg/core/xds"
 	"github.com/kumahq/kuma/pkg/plugins/policies/core/matchers"
 	core_rules "github.com/kumahq/kuma/pkg/plugins/policies/core/rules"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/subsetutils"
 	policies_xds "github.com/kumahq/kuma/pkg/plugins/policies/core/xds"
 	api "github.com/kumahq/kuma/pkg/plugins/policies/meshtrafficpermission/api/v1alpha1"
 	v3 "github.com/kumahq/kuma/pkg/plugins/policies/meshtrafficpermission/xds"
@@ -98,9 +99,9 @@ func (p plugin) Apply(rs *core_xds.ResourceSet, ctx xds_context.Context, proxy *
 func (p plugin) denyRules() core_rules.Rules {
 	return core_rules.Rules{
 		&core_rules.Rule{
-			Subset: core_rules.MeshSubset(),
+			Subset: subsetutils.MeshSubset(),
 			Conf: api.Conf{
-				Action: api.Deny,
+				Action: &api.Deny,
 			},
 		},
 	}
@@ -109,9 +110,9 @@ func (p plugin) denyRules() core_rules.Rules {
 func (p plugin) allowRules() core_rules.Rules {
 	return core_rules.Rules{
 		&core_rules.Rule{
-			Subset: core_rules.MeshSubset(),
+			Subset: subsetutils.MeshSubset(),
 			Conf: api.Conf{
-				Action: api.Allow,
+				Action: &api.Allow,
 			},
 		},
 	}
@@ -142,10 +143,9 @@ func (p plugin) configureEgress(rs *core_xds.ResourceSet, proxy *core_xds.Proxy)
 		}
 		// egress is configured for all meshes so we cannot use mesh context in this case
 		mesNames := []string{}
-		if _, found := resource.Resources[meshexternalservice_api.MeshExternalServiceType]; found {
-			for _, mes := range resource.Resources[meshexternalservice_api.MeshExternalServiceType].GetItems() {
-				mesNames = append(mesNames, mes.GetMeta().GetName())
-			}
+		for _, mes := range resource.ListOrEmpty(meshexternalservice_api.MeshExternalServiceType).GetItems() {
+			meshExtSvc := mes.(*meshexternalservice_api.MeshExternalServiceResource)
+			mesNames = append(mesNames, meshExtSvc.DestinationName(uint32(meshExtSvc.Spec.Match.Port)))
 		}
 
 		for _, esName := range esNames {
@@ -201,7 +201,7 @@ func (p plugin) configureEgress(rs *core_xds.ResourceSet, proxy *core_xds.Proxy)
 					Mesh:      meshName,
 				}
 				for _, filterChain := range listeners.Egress.FilterChains {
-					if filterChain.Name == names.GetEgressFilterChainName(mesName, meshName) {
+					if filterChain.Name == mesName {
 						if err := configurer.Configure(filterChain); err != nil {
 							return err
 						}

@@ -25,23 +25,23 @@ func MeshAccessLog() *MeshAccessLogBuilder {
 }
 
 func (m *MeshAccessLogBuilder) WithTargetRef(targetRef common_api.TargetRef) *MeshAccessLogBuilder {
-	m.res.Spec.TargetRef = targetRef
+	m.res.Spec.TargetRef = &targetRef
 	return m
 }
 
 func (m *MeshAccessLogBuilder) AddFrom(targetRef common_api.TargetRef, conf *MeshAccessLogConfBuilder) *MeshAccessLogBuilder {
-	m.res.Spec.From = append(m.res.Spec.From, meshaccesslog_proto.From{
+	m.res.Spec.From = pointer.To(append(pointer.Deref(m.res.Spec.From), meshaccesslog_proto.From{
 		TargetRef: targetRef,
 		Default:   conf.res,
-	})
+	}))
 	return m
 }
 
 func (m *MeshAccessLogBuilder) AddTo(targetRef common_api.TargetRef, conf *MeshAccessLogConfBuilder) *MeshAccessLogBuilder {
-	m.res.Spec.To = append(m.res.Spec.To, meshaccesslog_proto.To{
+	m.res.Spec.To = pointer.To(append(pointer.Deref(m.res.Spec.To), meshaccesslog_proto.To{
 		TargetRef: targetRef,
 		Default:   conf.res,
-	})
+	}))
 	return m
 }
 

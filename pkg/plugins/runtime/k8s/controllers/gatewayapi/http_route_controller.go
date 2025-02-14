@@ -215,12 +215,12 @@ func (r *HTTPRouteReconciler) gapiToKumaRoutes(
 				routeSubName := generateMeshHTTPRouteName(route, ref)
 
 				routes[routeSubName] = &meshhttproute_api.MeshHTTPRoute{
-					TargetRef: common_api.TargetRef{
+					TargetRef: &common_api.TargetRef{
 						Kind: common_api.MeshGateway,
 						Name: fmt.Sprintf("%s.%s", ref.Name, namespace),
 						Tags: tags,
 					},
-					To: []meshhttproute_api.To{{
+					To: &[]meshhttproute_api.To{{
 						Hostnames: headers,
 						TargetRef: common_api.TargetRef{Kind: common_api.Mesh},
 						Rules:     rules,

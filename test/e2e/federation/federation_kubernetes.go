@@ -35,7 +35,7 @@ func FederateKubeZoneCPToKubeGlobal() {
 			Install(Kuma(core.Global,
 				WithInstallationMode(HelmInstallationMode),
 				WithHelmReleaseName(releaseName),
-				WithEnv("KUMA_DEFAULTS_SKIP_MESH_CREATION", "true"),
+				WithSkipDefaultMesh(true),
 			)).
 			Setup(global)
 		Expect(err).ToNot(HaveOccurred())
@@ -48,8 +48,10 @@ func FederateKubeZoneCPToKubeGlobal() {
 			Install(NamespaceWithSidecarInjection(TestNamespace)).
 			Install(MTLSMeshKubernetes("default")).
 			Install(MeshTrafficPermissionAllowAllKubernetes("default")).
-			Install(democlient.Install()).
-			Install(testserver.Install()).
+			Install(Parallel(
+				democlient.Install(),
+				testserver.Install(),
+			)).
 			Setup(zone)
 		Expect(err).ToNot(HaveOccurred())
 	})

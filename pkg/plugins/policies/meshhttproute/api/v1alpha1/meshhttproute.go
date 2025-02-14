@@ -22,10 +22,10 @@ type MeshHTTPRoute struct {
 	// TargetRef is a reference to the resource the policy takes an effect on.
 	// The resource could be either a real store object or virtual resource
 	// defined inplace.
-	TargetRef common_api.TargetRef `json:"targetRef,omitempty"`
+	TargetRef *common_api.TargetRef `json:"targetRef,omitempty"`
 
 	// To matches destination services of requests and holds configuration.
-	To []To `json:"to,omitempty"`
+	To *[]To `json:"to,omitempty"`
 }
 
 type To struct {
@@ -36,10 +36,10 @@ type To struct {
 	Hostnames []string `json:"hostnames,omitempty"`
 	// TargetRef is a reference to the resource that represents a group of
 	// request destinations.
-	TargetRef common_api.TargetRef `json:"targetRef,omitempty"`
+	TargetRef common_api.TargetRef `json:"targetRef"`
 	// Rules contains the routing rules applies to a combination of top-level
 	// targetRef and the targetRef in this entry.
-	Rules []Rule `json:"rules,omitempty"`
+	Rules []Rule `json:"rules"`
 }
 
 type Rule struct {
@@ -52,10 +52,10 @@ type Rule struct {
 	Default RuleConf `json:"default"`
 }
 
-func HashMatches(m []Match) string {
+func HashMatches(m []Match) common_api.MatchesHash {
 	bytes, _ := json.Marshal(m)
 	h := sha256.Hash(string(bytes))
-	return h
+	return common_api.MatchesHash(h)
 }
 
 type Match struct {

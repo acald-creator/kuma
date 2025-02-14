@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Masterminds/semver/v3"
@@ -78,13 +79,11 @@ func addControllers(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8
 	if err := addNamespaceReconciler(mgr, rt); err != nil {
 		return err
 	}
-	if err := addServiceReconciler(mgr); err != nil {
+	if err := addServiceReconciler(mgr, rt); err != nil {
 		return err
 	}
-	if rt.Config().Experimental.GenerateMeshServices {
-		if err := addMeshServiceReconciler(mgr); err != nil {
-			return err
-		}
+	if err := addMeshServiceReconciler(mgr, rt, converter); err != nil {
+		return err
 	}
 	if err := addMeshReconciler(mgr, rt); err != nil {
 		return err
@@ -104,7 +103,7 @@ func addControllers(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8
 
 	nodeTaintController := rt.Config().Runtime.Kubernetes.NodeTaintController
 	if nodeTaintController.Enabled {
-		if err := addCniNodeTaintReconciler(mgr, nodeTaintController.CniApp, nodeTaintController.CniNamespace); err != nil {
+		if err := addCniNodeTaintReconciler(mgr, rt, nodeTaintController.CniApp, nodeTaintController.CniNamespace); err != nil {
 			return err
 		}
 	}
@@ -112,7 +111,10 @@ func addControllers(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8
 	return nil
 }
 
-func addCniNodeTaintReconciler(mgr kube_ctrl.Manager, cniApp string, cniNamespace string) error {
+func addCniNodeTaintReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime, cniApp string, cniNamespace string) error {
+	if rt.Config().Mode == config_core.Global {
+		return nil
+	}
 	reconciler := &k8s_controllers.CniNodeTaintReconciler{
 		Client:       mgr.GetClient(),
 		Log:          core.Log.WithName("controllers").WithName("NodeTaint"),
@@ -124,6 +126,9 @@ func addCniNodeTaintReconciler(mgr kube_ctrl.Manager, cniApp string, cniNamespac
 }
 
 func addNamespaceReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime) error {
+	if rt.Config().Mode == config_core.Global {
+		return nil
+	}
 	reconciler := &k8s_controllers.NamespaceReconciler{
 		Client:     mgr.GetClient(),
 		Log:        core.Log.WithName("controllers").WithName("Namespace"),
@@ -132,7 +137,10 @@ func addNamespaceReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime) erro
 	return reconciler.SetupWithManager(mgr)
 }
 
-func addServiceReconciler(mgr kube_ctrl.Manager) error {
+func addServiceReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime) error {
+	if rt.Config().Mode == config_core.Global {
+		return nil
+	}
 	reconciler := &k8s_controllers.ServiceReconciler{
 		Client: mgr.GetClient(),
 		Log:    core.Log.WithName("controllers").WithName("Service"),
@@ -140,12 +148,16 @@ func addServiceReconciler(mgr kube_ctrl.Manager) error {
 	return reconciler.SetupWithManager(mgr)
 }
 
-func addMeshServiceReconciler(mgr kube_ctrl.Manager) error {
+func addMeshServiceReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8s_common.Converter) error {
+	if rt.Config().Mode == config_core.Global {
+		return nil
+	}
 	reconciler := &k8s_controllers.MeshServiceReconciler{
-		Client:        mgr.GetClient(),
-		Log:           core.Log.WithName("controllers").WithName("MeshService"),
-		Scheme:        mgr.GetScheme(),
-		EventRecorder: mgr.GetEventRecorderFor("k8s.kuma.io/mesh-service-generator"),
+		Client:            mgr.GetClient(),
+		Log:               core.Log.WithName("controllers").WithName("MeshService"),
+		Scheme:            mgr.GetScheme(),
+		EventRecorder:     mgr.GetEventRecorderFor("k8s.kuma.io/mesh-service-generator"),
+		ResourceConverter: converter,
 	}
 	return reconciler.SetupWithManager(mgr)
 }
@@ -170,6 +182,9 @@ func addMeshReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime) error {
 }
 
 func addPodReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8s_common.Converter) error {
+	if rt.Config().Mode == config_core.Global {
+		return nil
+	}
 	reconciler := &k8s_controllers.PodReconciler{
 		Client:        mgr.GetClient(),
 		EventRecorder: mgr.GetEventRecorderFor("k8s.kuma.io/dataplane-generator"),
@@ -187,6 +202,8 @@ func addPodReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter 
 				NodeLabelsToCopy: rt.Config().Runtime.Kubernetes.Injector.NodeLabelsToCopy,
 			},
 			Zone:                rt.Config().Multizone.Zone.Name,
+			SystemNamespace:     rt.Config().Store.Kubernetes.SystemNamespace,
+			Mode:                rt.Config().Mode,
 			ResourceConverter:   converter,
 			KubeOutboundsAsVIPs: rt.Config().Experimental.KubeOutboundsAsVIPs,
 		},
@@ -198,6 +215,9 @@ func addPodReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter 
 }
 
 func addPodStatusReconciler(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8s_common.Converter) error {
+	if rt.Config().Mode == config_core.Global {
+		return nil
+	}
 	reconciler := &k8s_controllers.PodStatusReconciler{
 		Client:            mgr.GetClient(),
 		EventRecorder:     mgr.GetEventRecorderFor("k8s.kuma.io/dataplane-jobs-syncer"),
@@ -293,7 +313,10 @@ func addValidators(mgr kube_ctrl.Manager, rt core_runtime.Runtime, converter k8s
 	})
 
 	mgr.GetWebhookServer().Register("/validate-kuma-io-v1alpha1", composite.IntoWebhook(mgr.GetScheme()))
-	mgr.GetWebhookServer().Register("/validate-v1-service", &kube_webhook.Admission{Handler: &k8s_webhooks.ServiceValidator{Decoder: kube_admission.NewDecoder(mgr.GetScheme())}})
+	// TODO remove in 2.12 or higher https://github.com/kumahq/kuma/issues/12759
+	mgr.GetWebhookServer().Register("/validate-v1-service", &kube_webhook.Admission{Handler: kube_admission.HandlerFunc(func(ctx context.Context, request kube_admission.Request) kube_admission.Response {
+		return kube_admission.Allowed("")
+	})})
 
 	client, ok := k8s_extensions.FromSecretClientContext(rt.Extensions())
 	if !ok {

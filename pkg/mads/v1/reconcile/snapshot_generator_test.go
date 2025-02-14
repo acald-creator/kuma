@@ -19,7 +19,7 @@ import (
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
 	core_store "github.com/kumahq/kuma/pkg/core/resources/store"
 	"github.com/kumahq/kuma/pkg/dns/vips"
-	mads_cache "github.com/kumahq/kuma/pkg/mads/v1/cache"
+	mads_v1 "github.com/kumahq/kuma/pkg/mads/v1"
 	mads_generator "github.com/kumahq/kuma/pkg/mads/v1/generator"
 	meshmetrics_generator "github.com/kumahq/kuma/pkg/mads/v1/generator"
 	. "github.com/kumahq/kuma/pkg/mads/v1/reconcile"
@@ -31,7 +31,6 @@ import (
 	test_model "github.com/kumahq/kuma/pkg/test/resources/model"
 	"github.com/kumahq/kuma/pkg/test/resources/samples"
 	"github.com/kumahq/kuma/pkg/util/proto"
-	v3 "github.com/kumahq/kuma/pkg/util/xds/v3"
 	"github.com/kumahq/kuma/pkg/xds/cache/mesh"
 	xds_context "github.com/kumahq/kuma/pkg/xds/context"
 	"github.com/kumahq/kuma/pkg/xds/server"
@@ -43,7 +42,7 @@ var _ = Describe("snapshotGenerator", func() {
 		var resourceManager core_manager.ResourceManager
 		var store core_store.ResourceStore
 		node1Id := "one"
-		snapshotWithTwoAssignments := mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+		snapshotWithTwoAssignments := map[string]envoy_types.Resource{
 			"/meshes/demo/dataplanes/backend-02": &observability_v1.MonitoringAssignment{
 				Mesh:    "demo",
 				Service: "backend",
@@ -76,9 +75,9 @@ var _ = Describe("snapshotGenerator", func() {
 					},
 				}},
 			},
-		})
+		}
 
-		meshMetricSnapshot := mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+		meshMetricSnapshot := map[string]envoy_types.Resource{
 			"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 				Mesh:    "default",
 				Service: "backend",
@@ -90,7 +89,7 @@ var _ = Describe("snapshotGenerator", func() {
 					Labels:      map[string]string{},
 				}},
 			},
-		})
+		}
 
 		BeforeEach(func() {
 			store = memory.NewStore()
@@ -101,7 +100,7 @@ var _ = Describe("snapshotGenerator", func() {
 			meshes            []*core_mesh.MeshResource
 			meshMetrics       []*v1alpha1.MeshMetricResource
 			dataplanes        []*core_mesh.DataplaneResource
-			expectedSnapshots map[string]v3.Snapshot
+			expectedSnapshots map[string]map[string]envoy_types.Resource
 		}
 
 		DescribeTable("",
@@ -118,7 +117,6 @@ var _ = Describe("snapshotGenerator", func() {
 					".mesh",
 					80,
 					xds_context.AnyToAnyReachableServicesGraphBuilder,
-					false,
 				)
 				newMetrics, err := metrics.NewMetrics(zone)
 				Expect(err).ToNot(HaveOccurred())
@@ -152,11 +150,17 @@ var _ = Describe("snapshotGenerator", func() {
 				// then
 				Expect(err).ToNot(HaveOccurred())
 				// and
-				Expect(snapshotPerClient).To(Equal(given.expectedSnapshots))
+
+				for k, v := range given.expectedSnapshots {
+					Expect(snapshotPerClient).To(HaveKey(k))
+					generatedSnapshot := snapshotPerClient[k].GetResources(mads_v1.MonitoringAssignmentType)
+					Expect(generatedSnapshot).To(Equal(v))
+				}
+				Expect(snapshotPerClient).To(HaveLen(len(given.expectedSnapshots)))
 			},
 			Entry("no Meshes, no Dataplanes, no MeshMetrics", testCase{
-				expectedSnapshots: map[string]v3.Snapshot{
-					meshmetrics_generator.DefaultKumaClientId: mads_cache.NewSnapshot("", nil),
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					meshmetrics_generator.DefaultKumaClientId: {},
 				},
 			}),
 			Entry("no Meshes with Prometheus enabled, no MeshMetrics", testCase{
@@ -173,8 +177,8 @@ var _ = Describe("snapshotGenerator", func() {
 						WithName("backend-01").
 						Build(),
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					meshmetrics_generator.DefaultKumaClientId: mads_cache.NewSnapshot("", nil),
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					meshmetrics_generator.DefaultKumaClientId: {},
 				},
 			}),
 			Entry("Mesh with Prometheus enabled but no Dataplanes, no MeshMetrics", testCase{
@@ -211,8 +215,8 @@ var _ = Describe("snapshotGenerator", func() {
 						WithName("backend-01").
 						Build(),
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					meshmetrics_generator.DefaultKumaClientId: mads_cache.NewSnapshot("", nil),
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					meshmetrics_generator.DefaultKumaClientId: {},
 				},
 			}),
 			Entry("Mesh with Prometheus enabled and some Dataplanes, no MeshMetrics", testCase{
@@ -266,7 +270,7 @@ var _ = Describe("snapshotGenerator", func() {
 						}).
 						Build(),
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
 					meshmetrics_generator.DefaultKumaClientId: snapshotWithTwoAssignments,
 				},
 			}),
@@ -292,7 +296,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.Mesh,
 							},
 							Default: v1alpha1.Conf{
@@ -313,7 +317,7 @@ var _ = Describe("snapshotGenerator", func() {
 						},
 					},
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
 					meshmetrics_generator.DefaultKumaClientId: meshMetricSnapshot,
 				},
 			}),
@@ -339,7 +343,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.Mesh,
 							},
 							Default: v1alpha1.Conf{
@@ -360,8 +364,8 @@ var _ = Describe("snapshotGenerator", func() {
 						},
 					},
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					node1Id: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					node1Id: {
 						"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend",
@@ -373,7 +377,7 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
+					},
 				},
 			}),
 			Entry("no Meshes with Prometheus enabled, MeshMetric with Prometheus enabled for node 1 and default client for rest", testCase{
@@ -398,7 +402,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.Mesh,
 							},
 							Default: v1alpha1.Conf{
@@ -429,8 +433,8 @@ var _ = Describe("snapshotGenerator", func() {
 						},
 					},
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					node1Id: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					node1Id: {
 						"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend",
@@ -442,8 +446,8 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
-					meshmetrics_generator.DefaultKumaClientId: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+					},
+					meshmetrics_generator.DefaultKumaClientId: {
 						"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend",
@@ -455,7 +459,7 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
+					},
 				},
 			}),
 			Entry("no Meshes with Prometheus enabled, MeshMetric with Prometheus for some dataplanes", testCase{
@@ -487,7 +491,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.MeshService,
 								Name: "backend-01",
 							},
@@ -509,8 +513,8 @@ var _ = Describe("snapshotGenerator", func() {
 						},
 					},
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					node1Id: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					node1Id: {
 						"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend-01",
@@ -522,7 +526,7 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
+					},
 				},
 			}),
 			Entry("no Meshes with Prometheus enabled, multiple MeshMetrics with Prometheus and merging", testCase{
@@ -559,7 +563,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.Mesh,
 							},
 							Default: v1alpha1.Conf{
@@ -585,7 +589,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.MeshService,
 								Name: "backend-02",
 							},
@@ -607,8 +611,8 @@ var _ = Describe("snapshotGenerator", func() {
 						},
 					},
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					node1Id: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					node1Id: {
 						"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend-01",
@@ -642,7 +646,7 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
+					},
 				},
 			}),
 			Entry("no Meshes with Prometheus enabled, MeshMetric targeting Mesh with override for backend-02 with Prometheus metrics backend", testCase{
@@ -679,7 +683,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.Mesh,
 							},
 							Default: v1alpha1.Conf{
@@ -705,7 +709,7 @@ var _ = Describe("snapshotGenerator", func() {
 							Mesh: "default",
 						},
 						Spec: &v1alpha1.MeshMetric{
-							TargetRef: common_api.TargetRef{
+							TargetRef: &common_api.TargetRef{
 								Kind: common_api.MeshService,
 								Name: "backend-02",
 							},
@@ -726,8 +730,8 @@ var _ = Describe("snapshotGenerator", func() {
 						},
 					},
 				},
-				expectedSnapshots: map[string]v3.Snapshot{
-					meshmetrics_generator.DefaultKumaClientId: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+				expectedSnapshots: map[string]map[string]envoy_types.Resource{
+					meshmetrics_generator.DefaultKumaClientId: {
 						"/meshes/default/dataplanes/backend-02": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend-02",
@@ -739,8 +743,8 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
-					node1Id: mads_cache.NewSnapshot("", map[string]envoy_types.Resource{
+					},
+					node1Id: {
 						"/meshes/default/dataplanes/backend-01": &observability_v1.MonitoringAssignment{
 							Mesh:    "default",
 							Service: "backend-01",
@@ -763,7 +767,7 @@ var _ = Describe("snapshotGenerator", func() {
 								Labels:      map[string]string{},
 							}},
 						},
-					}),
+					},
 				},
 			}),
 		)

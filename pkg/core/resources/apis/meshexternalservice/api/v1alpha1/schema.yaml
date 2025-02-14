@@ -26,8 +26,8 @@ properties:
         items:
           properties:
             address:
-              description: Address defines an address to which a user want to send a request. Is possible to provide `domain`, `ip` and `unix` sockets.
-              example: unix:///tmp/example.sock
+              description: Address defines an address to which a user want to send a request. Is possible to provide `domain`, `ip`.
+              example: example.com
               minLength: 1
               type: string
             port:
@@ -37,6 +37,7 @@ properties:
               type: integer
           required:
             - address
+            - port
           type: object
         type: array
       extension:
@@ -195,6 +196,18 @@ properties:
     required:
       - match
     type: object
+  creationTime:
+    readOnly: true
+    type: string
+    description: 'Time at which the resource was created'
+    format: date-time
+    example: '0001-01-01T00:00:00Z'
+  modificationTime:
+    readOnly: true
+    type: string
+    description: 'Time at which the resource was updated'
+    format: date-time
+    example: '0001-01-01T00:00:00Z'
   status:
     description: Status is the current status of the Kuma MeshExternalService resource.
     properties:
@@ -280,3 +293,4 @@ properties:
             type: string
         type: object
     type: object
+    readOnly: true

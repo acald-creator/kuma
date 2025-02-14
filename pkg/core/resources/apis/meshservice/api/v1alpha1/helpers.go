@@ -2,9 +2,9 @@ package v1alpha1
 
 import (
 	"fmt"
-	"strings"
 
 	mesh_proto "github.com/kumahq/kuma/api/mesh/v1alpha1"
+	"github.com/kumahq/kuma/pkg/core/resources/apis/core"
 	core_vip "github.com/kumahq/kuma/pkg/core/resources/apis/core/vip"
 	"github.com/kumahq/kuma/pkg/core/resources/model"
 	xds_types "github.com/kumahq/kuma/pkg/core/xds/types"
@@ -12,16 +12,24 @@ import (
 )
 
 func (m *MeshServiceResource) DestinationName(port uint32) string {
-	return fmt.Sprintf("%s_msvc_%d", strings.ReplaceAll(m.GetMeta().GetName(), ".", "_"), port)
+	id := model.NewResourceIdentifier(m)
+	return fmt.Sprintf("%s_%s_%s_%s_%s_%d", id.Mesh, id.Name, id.Namespace, id.Zone, MeshServiceResourceTypeDescriptor.ShortName, port)
 }
 
-func (m *MeshServiceResource) FindPort(port uint32) (Port, bool) {
+func (m *MeshServiceResource) findPort(port uint32) (Port, bool) {
 	for _, p := range m.Spec.Ports {
 		if p.Port == port {
 			return p, true
 		}
 	}
 	return Port{}, false
+}
+
+func (m *MeshServiceResource) FindSectionNameByPort(port uint32) (string, bool) {
+	if port, found := m.findPort(port); found {
+		return port.GetNameOrStringifyPort(), true
+	}
+	return "", false
 }
 
 func (m *MeshServiceResource) FindPortByName(name string) (Port, bool) {
@@ -36,15 +44,15 @@ func (m *MeshServiceResource) FindPortByName(name string) (Port, bool) {
 	return Port{}, false
 }
 
-func (m *MeshServiceResource) IsLocalMeshService(localZone string) bool {
+func (m *MeshServiceResource) IsLocalMeshService() bool {
 	if len(m.GetMeta().GetLabels()) == 0 {
 		return true // no labels mean that it's a local resource
 	}
-	resZone, ok := m.GetMeta().GetLabels()[mesh_proto.ZoneTag]
+	origin, ok := m.GetMeta().GetLabels()[mesh_proto.ResourceOriginLabel]
 	if !ok {
 		return true // no zone label mean that it's a local resource
 	}
-	return resZone == localZone
+	return origin == string(mesh_proto.ZoneResourceOrigin)
 }
 
 var _ core_vip.ResourceHoldingVIPs = &MeshServiceResource{}
@@ -86,13 +94,6 @@ func (t *MeshServiceResource) SNIName(systemNamespace string) string {
 	return t.GetMeta().GetName()
 }
 
-func (t *MeshServiceResource) Default() error {
-	if t.Spec.State == "" {
-		t.Spec.State = StateUnavailable
-	}
-	return nil
-}
-
 func (t *MeshServiceResource) AsOutbounds() xds_types.Outbounds {
 	var outbounds xds_types.Outbounds
 	for _, vip := range t.Status.VIPs {
@@ -100,7 +101,7 @@ func (t *MeshServiceResource) AsOutbounds() xds_types.Outbounds {
 			outbounds = append(outbounds, &xds_types.Outbound{
 				Address:  vip.IP,
 				Port:     port.Port,
-				Resource: pointer.To(model.NewTypedResourceIdentifier(t, model.WithSectionName(port.GetName()))),
+				Resource: pointer.To(model.NewTypedResourceIdentifier(t, model.WithSectionName(port.GetNameOrStringifyPort()))),
 			})
 		}
 	}
@@ -121,9 +122,25 @@ func (t *MeshServiceResource) Domains() *xds_types.VIPDomains {
 	return nil
 }
 
-func (p *Port) GetName() string {
+func (t *MeshServiceResource) GetPorts() []core.Port {
+	var ports []core.Port
+	for _, port := range t.Spec.Ports {
+		ports = append(ports, core.Port(port))
+	}
+	return ports
+}
+
+func (p Port) GetNameOrStringifyPort() string {
 	if p.Name != "" {
 		return p.Name
 	}
 	return fmt.Sprintf("%d", p.Port)
+}
+
+func (p Port) GetName() string {
+	return p.Name
+}
+
+func (p Port) GetValue() uint32 {
+	return p.Port
 }

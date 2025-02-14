@@ -1,5 +1,6 @@
 CI_K3S_VERSION ?= $(K8S_MIN_VERSION)
 METALLB_VERSION ?= v0.13.9
+K3D_VERSION ?= $(shell $(TOP)/$(KUMA_DIR)/mk/dependencies/k3d.sh - get-version)
 
 KUMA_MODE ?= zone
 KUMA_NAMESPACE ?= kuma-system
@@ -43,6 +44,7 @@ K3D_NETWORK_CNI ?= flannel
 K3D_REGISTRY_FILE ?=
 K3D_CLUSTER_CREATE_OPTS ?= -i rancher/k3s:$(CI_K3S_VERSION) \
 	--k3s-arg '--disable=traefik@server:0' \
+	--k3s-arg '--disable=metrics-server@server:0' \
 	--k3s-arg '--kubelet-arg=image-gc-high-threshold=100@server:0' \
 	--k3s-arg '--disable=servicelb@server:0' \
     --volume '$(subst @,\@,$(TOP)/$(KUMA_DIR))/test/framework/deployments:/tmp/deployments@server:0' \
@@ -52,8 +54,7 @@ K3D_CLUSTER_CREATE_OPTS ?= -i rancher/k3s:$(CI_K3S_VERSION) \
 	--timeout 120s
 
 ifeq ($(K3D_NETWORK_CNI),calico)
-	K3D_CLUSTER_CREATE_OPTS += --volume "$(TOP)/$(KUMA_DIR)/test/k3d/calico.yaml.kubelint-excluded:/var/lib/rancher/k3s/server/manifests/calico.yaml" \
-		--k3s-arg '--flannel-backend=none@server:*' --k3s-arg '--disable-network-policy@server:*'
+	K3D_CLUSTER_CREATE_OPTS += --k3s-arg '--flannel-backend=none@server:*' --k3s-arg '--disable-network-policy@server:*'
 endif
 
 ifdef CI
@@ -75,12 +76,51 @@ ifdef IPV6
     KIND_NETWORK_OPTS += --ipv6 --subnet "fd00:fd12:3456::0/64"
 endif
 
+K3D_HELM_DEPLOY_OPTS = \
+	--set global.image.registry="$(DOCKER_REGISTRY)"
+
+ifeq ($(BUILD_INFO_VERSION),0.0.0-preview.vlocal-build)
+	K3D_HELM_DEPLOY_OPTS += \
+		--set global.image.tag="$(BUILD_INFO_VERSION)"
+else
+	K3D_HELM_DEPLOY_OPTS += \
+		--set controlPlane.image.tag="$(BUILD_INFO_VERSION)" \
+		--set cni.image.tag="$(BUILD_INFO_VERSION)" \
+		--set dataPlane.image.tag="$(BUILD_INFO_VERSION)" \
+		--set dataPlane.initImage.tag="$(BUILD_INFO_VERSION)" \
+		--set kumactl.image.tag="$(BUILD_INFO_VERSION)"
+endif
+
+ifndef K3D_HELM_DEPLOY_NO_CNI
+	K3D_HELM_DEPLOY_OPTS += \
+		--set cni.enabled=true \
+		--set cni.chained=true \
+		--set cni.netDir=/var/lib/rancher/k3s/agent/etc/cni/net.d/ \
+		--set cni.binDir=/bin/ \
+		--set cni.confName=10-flannel.conflist
+endif
+
+ifdef K3D_HELM_DEPLOY_ADDITIONAL_OPTS
+	K3D_HELM_DEPLOY_OPTS += $(K3D_HELM_DEPLOY_ADDITIONAL_OPTS)
+endif
+
+define maybe_with_flock
+  if which flock >/dev/null 2>&1; then \
+    SHELL=bash flock -x $(BUILD_DIR)/k3d_network.lock -c $(1); \
+  else \
+    bash -c $(1); \
+  fi
+endef
+
 .PHONY: k3d/network/create
 k3d/network/create:
 	@touch $(BUILD_DIR)/k3d_network.lock && \
-		if [ `which flock` ]; then flock -x $(BUILD_DIR)/k3d_network.lock -c 'docker network create -d=bridge $(KIND_NETWORK_OPTS) kind || true'; \
-		else docker network create -d=bridge $(KIND_NETWORK_OPTS) kind || true; fi && \
-		rm -f $(BUILD_DIR)/k3d_network.lock
+		$(call maybe_with_flock,"if ! docker network inspect kind >/dev/null 2>&1; then \
+		  docker network create -d=bridge $(KIND_NETWORK_OPTS) kind >/dev/null; \
+		fi; \
+		echo 'Using docker network: '; \
+		docker network inspect kind --format='{{ .Id }}'")
+	@rm -f $(BUILD_DIR)/k3d_network.lock
 
 DOCKERHUB_PULL_CREDENTIAL ?=
 .PHONY: k3d/setup-docker-credentials
@@ -102,6 +142,7 @@ k3d/start: ${KIND_KUBECONFIG_DIR} k3d/network/create k3d/setup-docker-credential
 	@echo "PORT_PREFIX=$(PORT_PREFIX)"
 	@KUBECONFIG=$(KIND_KUBECONFIG) \
 		$(K3D_BIN) cluster create "$(KIND_CLUSTER_NAME)" $(K3D_CLUSTER_CREATE_OPTS)
+	$(MAKE) k3d/configure/calico
 	$(MAKE) k3d/wait
 	@echo
 	@echo '>>> You need to manually run the following command in your shell: >>>'
@@ -112,6 +153,14 @@ k3d/start: ${KIND_KUBECONFIG_DIR} k3d/network/create k3d/setup-docker-credential
 	@echo
 	$(MAKE) k3d/configure/ebpf
 	$(MAKE) k3d/configure/metallb
+
+.PHONY: k3d/configure/calico
+k3d/configure/calico:
+ifeq ($(K3D_NETWORK_CNI),calico)
+	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/tigera-operator.yaml
+	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/custom-resources.yaml
+	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) patch installation default --type=merge --patch='{"spec":{"calicoNetwork":{"containerIPForwarding":"Enabled"}}}'
+endif
 
 .PHONY: k3d/configure/ebpf
 k3d/configure/ebpf:
@@ -159,9 +208,11 @@ k3d/load/images:
 
 .PHONY: k3d/load
 k3d/load:
+ifndef K3D_DONT_LOAD
 	$(MAKE) images
 	$(MAKE) docker/tag
 	$(MAKE) k3d/load/images
+endif
 
 .PHONY: k3d/deploy/kuma
 k3d/deploy/kuma: build/kumactl k3d/load
@@ -174,17 +225,17 @@ k3d/deploy/kuma: build/kumactl k3d/load
 
 .PHONY: k3d/deploy/helm
 k3d/deploy/helm: k3d/load
-	KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) delete namespace $(KUMA_NAMESPACE) --wait | true
-	KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) create namespace $(KUMA_NAMESPACE)
-	KUBECONFIG=$(KIND_KUBECONFIG) helm upgrade --install --namespace $(KUMA_NAMESPACE) \
-                --set global.image.registry="$(DOCKER_REGISTRY)" \
-                --set global.image.tag="$(BUILD_INFO_VERSION)" \
-                --set cni.enabled=true \
-                --set cni.chained=true \
-                --set cni.netDir=/var/lib/rancher/k3s/agent/etc/cni/net.d/ \
-                --set cni.binDir=/bin/ \
-                --set cni.confName=10-flannel.conflist \
-                kuma ./deployments/charts/kuma
+ifndef K3D_DEPLOY_HELM_DONT_DELETE_NS
+	@KUBECONFIG=$(KIND_KUBECONFIG) helm delete --wait --ignore-not-found --namespace $(KUMA_NAMESPACE) kuma 2>/dev/null
+	@until \
+	    ! @KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) get pods -n $(KUMA_NAMESPACE) --selector app=kuma-control-plane 2>/dev/null ; \
+	do sleep 1; done
+	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) delete namespace $(KUMA_NAMESPACE) --force --wait --ignore-not-found 2>/dev/null
+	@until \
+	    ! @KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) get namespace $(KUMA_NAMESPACE) 2>/dev/null ; \
+	do sleep 1; done
+endif
+	KUBECONFIG=$(KIND_KUBECONFIG) helm upgrade --install --namespace $(KUMA_NAMESPACE) --create-namespace $(K3D_HELM_DEPLOY_OPTS) kuma ./deployments/charts/kuma
 	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) wait --timeout=60s --for=condition=Available -n $(KUMA_NAMESPACE) deployment/kuma-control-plane
 	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) wait --timeout=60s --for=condition=Ready -n $(KUMA_NAMESPACE) pods -l app=kuma-control-plane
 

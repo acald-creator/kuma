@@ -3,12 +3,14 @@ package framework
 import (
 	"bytes"
 	"context"
+	std_errors "errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +60,7 @@ type K8sCluster struct {
 	forwardedPortsChans []chan struct{}
 	verbose             bool
 	deployments         map[string]Deployment
+	mutex               sync.RWMutex // to protect deployments
 	defaultTimeout      time.Duration
 	defaultRetries      int
 	opts                kumaDeploymentOptions
@@ -155,6 +158,8 @@ func (c *K8sCluster) Name() string {
 }
 
 func (c *K8sCluster) Deployment(name string) Deployment {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.deployments[name]
 }
 
@@ -194,20 +199,43 @@ func (c *K8sCluster) WaitNamespaceCreate(namespace string) {
 		})
 }
 
-func (c *K8sCluster) WaitNamespaceDelete(namespace string) {
-	retry.DoWithRetry(c.t,
+func WaitNamespaceDelete(cluster Cluster, namespace string) error {
+	c, ok := cluster.(*K8sCluster)
+	if !ok {
+		return errors.New("cluster is not a K8sCluster")
+	}
+
+	_, err := retry.DoWithRetryE(c.t,
 		fmt.Sprintf("Wait for %s Namespace to terminate.", namespace),
 		c.defaultRetries,
 		c.defaultTimeout,
 		func() (string, error) {
-			_, err := k8s.GetNamespaceE(c.t,
+			nsObject, err := k8s.GetNamespaceE(c.t,
 				c.GetKubectlOptions(),
 				namespace)
 			if err != nil {
-				return "Namespace " + namespace + " deleted", nil
+				if k8s_errors.IsNotFound(err) {
+					return "Namespace " + namespace + " deleted", nil
+				}
+				return "Failed to get Namespace " + namespace, err
 			}
-			return "Namespace available " + namespace, fmt.Errorf("Namespace %s still active", namespace)
+
+			var conditions []string
+			for _, condition := range nsObject.Status.Conditions {
+				conditions = append(conditions, condition.String())
+			}
+			return "Namespace available " + namespace, fmt.Errorf("namespace %s still active, conditions: %s", namespace, strings.Join(conditions, ","))
 		})
+	if err != nil {
+		var namespaceStr string
+		nsObject, err := k8s.GetNamespaceE(c.t, c.GetKubectlOptions(), namespace)
+		if err == nil {
+			namespaceStr = "namespace object: " + nsObject.String()
+		}
+		all, _ := k8s.RunKubectlAndGetOutputE(c.t, c.GetKubectlOptions(namespace), "get", "all")
+		return errors.Wrapf(err, "debug data: %s, all in namespace: %s", namespaceStr, all)
+	}
+	return err
 }
 
 func (c *K8sCluster) WaitNodeDelete(node string) (string, error) {
@@ -265,6 +293,9 @@ func (c *K8sCluster) GetPodLogs(pod v1.Pod, podLogOpts v1.PodLogOptions) (string
 // deployKumaViaKubectl uses kubectl to install kuma
 // using the resources from the `kumactl install control-plane` command
 func (c *K8sCluster) deployKumaViaKubectl(mode string) error {
+	if err := c.installCRDs(); err != nil {
+		return err
+	}
 	yaml, err := c.yamlForKumaViaKubectl(mode)
 	if err != nil {
 		return err
@@ -275,6 +306,37 @@ func (c *K8sCluster) deployKumaViaKubectl(mode string) error {
 		yaml)
 }
 
+// installCRDs installs Kuma CRDs and waits until it's ready
+// Usually it's immediately, but when we were installing CRDs and Kuma CP at the same time, sometimes we hit
+// a problem when CP could not recognize CRDs in Kubernetes and CP was restarted.
+func (c *K8sCluster) installCRDs() error {
+	crds, err := c.GetKumactlOptions().RunKumactlAndGetOutputV(false, "install", "crds")
+	if err != nil {
+		return err
+	}
+	if err := k8s.KubectlApplyFromStringE(c.t, c.GetKubectlOptions(), crds); err != nil {
+		return err
+	}
+
+	regexPattern := `(?m)^\s*name:\s*([^\s]+\.kuma\.io)\b`
+	re := regexp.MustCompile(regexPattern)
+	matches := re.FindAllStringSubmatch(crds, -1)
+	if matches == nil {
+		return fmt.Errorf("no matches found")
+	}
+
+	for _, match := range matches {
+		if len(match) > 1 {
+			crdName := match[1]
+			err := k8s.RunKubectlE(c.t, c.GetKubectlOptions(), "wait", "--for", "condition=established", "--timeout=60s", "crd/"+crdName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (c *K8sCluster) yamlForKumaViaKubectl(mode string) (string, error) {
 	argsMap := map[string]string{
 		"--mode":                      mode,
@@ -283,6 +345,7 @@ func (c *K8sCluster) yamlForKumaViaKubectl(mode string) (string, error) {
 		"--dataplane-repository":      Config.KumaDPImageRepo,
 		"--dataplane-init-repository": Config.KumaInitImageRepo,
 	}
+	var args []string
 	if Config.KumaImageRegistry != "" {
 		argsMap["--control-plane-registry"] = Config.KumaImageRegistry
 		argsMap["--dataplane-registry"] = Config.KumaImageRegistry
@@ -313,6 +376,9 @@ func (c *K8sCluster) yamlForKumaViaKubectl(mode string) (string, error) {
 
 	if c.opts.zoneEgress {
 		argsMap["--egress-enabled"] = ""
+		if Config.Debug {
+			args = append(args, "--set", fmt.Sprintf("%segress.logLevel=debug", Config.HelmSubChartPrefix))
+		}
 	}
 
 	if c.opts.cni {
@@ -331,7 +397,6 @@ func (c *K8sCluster) yamlForKumaViaKubectl(mode string) (string, error) {
 		argsMap[opt] = value
 	}
 
-	var args []string
 	for k, v := range argsMap {
 		args = append(args, k, v)
 	}
@@ -341,6 +406,10 @@ func (c *K8sCluster) yamlForKumaViaKubectl(mode string) (string, error) {
 		args = append(args, "--env-var", "KUMA_IPAM_MESH_SERVICE_CIDR=fd00:fd01::/64")
 		args = append(args, "--env-var", "KUMA_IPAM_MESH_EXTERNAL_SERVICE_CIDR=fd00:fd02::/64")
 		args = append(args, "--env-var", "KUMA_IPAM_MESH_MULTI_ZONE_SERVICE_CIDR=fd00:fd03::/64")
+	}
+
+	if Config.Debug {
+		args = append(args, "--set", fmt.Sprintf("%scontrolPlane.logLevel=debug", Config.HelmSubChartPrefix))
 	}
 
 	for k, v := range c.opts.env {
@@ -395,6 +464,14 @@ func (c *K8sCluster) genValues(mode string) map[string]string {
 		values["controlPlane.envVars.KUMA_IPAM_MESH_SERVICE_CIDR"] = "fd00:fd01::/64"
 		values["controlPlane.envVars.KUMA_IPAM_MESH_EXTERNAL_SERVICE_CIDR"] = "fd00:fd02::/64"
 		values["controlPlane.envVars.KUMA_IPAM_MESH_MULTI_ZONE_SERVICE_CIDR"] = "fd00:fd03::/64"
+	}
+
+	if Config.Debug {
+		values["controlPlane.logLevel"] = "debug"
+	}
+
+	for key, value := range c.opts.env {
+		values[fmt.Sprintf("controlPlane.envVars.%s", key)] = value
 	}
 
 	switch mode {
@@ -494,6 +571,16 @@ func (c *K8sCluster) DeployKuma(mode core.CpMode, opt ...KumaDeploymentOption) e
 	switch mode {
 	case core.Zone:
 		c.opts.env["KUMA_MULTIZONE_ZONE_KDS_TLS_SKIP_VERIFY"] = "true"
+	}
+
+	if Config.Debug {
+		dpEnvVarKey := "KUMA_RUNTIME_KUBERNETES_INJECTOR_SIDECAR_CONTAINER_ENV_VARS"
+		debugEnv := "KUMA_DATAPLANE_RUNTIME_ENVOY_LOG_LEVEL:debug"
+		if envVars, ok := c.opts.env[dpEnvVarKey]; ok {
+			c.opts.env[dpEnvVarKey] = envVars + "," + debugEnv
+		} else {
+			c.opts.env[dpEnvVarKey] = debugEnv
+		}
 	}
 
 	var err error
@@ -915,13 +1002,9 @@ func (c *K8sCluster) deleteKumaViaKumactl() error {
 		return err
 	}
 
-	_ = k8s.KubectlDeleteFromStringE(c.t,
-		c.GetKubectlOptions(),
-		yaml)
+	_ = k8s.KubectlDeleteFromStringE(c.t, c.GetKubectlOptions(), yaml)
 
-	c.WaitNamespaceDelete(Config.KumaNamespace)
-
-	return nil
+	return WaitNamespaceDelete(c, Config.KumaNamespace)
 }
 
 func (c *K8sCluster) DeleteKuma() error {
@@ -992,29 +1075,54 @@ func (c *K8sCluster) CreateNamespace(namespace string) error {
 	return nil
 }
 
-func (c *K8sCluster) DeleteNamespace(namespace string) error {
-	if err := k8s.DeleteNamespaceE(c.GetTesting(), c.GetKubectlOptions(), namespace); err != nil {
-		if k8s_errors.IsNotFound(err) {
-			return nil
-		}
-		return err
+func DeleteAllResources(kinds string, flags ...string) NamespaceDeleteHookFunc {
+	return func(c Cluster, namespace string) error {
+		baseArgs := []string{"delete", "--all", kinds}
+
+		return k8s.RunKubectlE(
+			c.GetTesting(),
+			c.GetKubectlOptions(namespace),
+			slices.Concat(baseArgs, flags)...,
+		)
 	}
-
-	c.WaitNamespaceDelete(namespace)
-
-	return nil
 }
 
-func (c *K8sCluster) TriggerDeleteNamespace(namespace string) error {
+// DeleteNamespace deletes a namespace and waits for it to be fully removed. It uses the
+// default hook that force deletes services and pods for faster deletion and appends a wait
+// hook to ensure the namespace is gone before returning.
+func (c *K8sCluster) DeleteNamespace(namespace string, hooks ...NamespaceDeleteHookFunc) error {
+	return c.TriggerDeleteNamespace(namespace, append(hooks, WaitNamespaceDelete)...)
+}
+
+// TriggerDeleteNamespace deletes a namespace with a default hook that force deletes all
+// services and pods, making the namespace removal significantly faster. Additional custom
+// hooks can be provided to run after deletion.
+func (c *K8sCluster) TriggerDeleteNamespace(namespace string, hooks ...NamespaceDeleteHookFunc) error {
+	baseHooks := []NamespaceDeleteHookFunc{
+		DeleteAllResources("services,pods", "--grace-period=0", "--force"),
+	}
+
+	return c.TriggerDeleteNamespaceCustomHooks(namespace, slices.Concat(baseHooks, hooks)...)
+}
+
+// TriggerDeleteNamespaceCustomHooks deletes a namespace without the default hook that force
+// deletes all services and pods. This means the namespace deletion might take longer compared
+// to TriggerDeleteNamespace, which removes resources aggressively to speed up the process.
+// Custom hooks can be provided to run additional actions after deletion.
+func (c *K8sCluster) TriggerDeleteNamespaceCustomHooks(namespace string, hooks ...NamespaceDeleteHookFunc) error {
 	if err := k8s.DeleteNamespaceE(c.GetTesting(), c.GetKubectlOptions(), namespace); err != nil {
 		if k8s_errors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
-	// speed up namespace termination by terminating pods without grace period.
-	// Namespace is then deleted in ~6s instead of ~43s.
-	return k8s.RunKubectlE(c.GetTesting(), c.GetKubectlOptions(namespace), "delete", "pods", "--all", "--grace-period=0")
+
+	var errs []error
+	for _, fn := range hooks {
+		errs = append(errs, fn(c, namespace))
+	}
+
+	return std_errors.Join(errs...)
 }
 
 func (c *K8sCluster) DeleteMesh(mesh string) error {
@@ -1117,6 +1225,8 @@ func (c *K8sCluster) GetTesting() testing.TestingT {
 
 func (c *K8sCluster) DismissCluster() error {
 	var errs error
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	for name, deployment := range c.deployments {
 		if err := deployment.Delete(c); err != nil {
 			errs = multierr.Append(errs, err)
@@ -1127,19 +1237,25 @@ func (c *K8sCluster) DismissCluster() error {
 }
 
 func (c *K8sCluster) Deploy(deployment Deployment) error {
+	c.mutex.Lock()
 	c.deployments[deployment.Name()] = deployment
+	c.mutex.Unlock()
 	return deployment.Deploy(c)
 }
 
 func (c *K8sCluster) DeleteDeployment(name string) error {
+	c.mutex.RLock()
 	deployment, ok := c.deployments[name]
+	c.mutex.RUnlock()
 	if !ok {
 		return errors.Errorf("deployment %s not found", name)
 	}
 	if err := deployment.Delete(c); err != nil {
 		return err
 	}
+	c.mutex.Lock()
 	delete(c.deployments, name)
+	c.mutex.Unlock()
 	return nil
 }
 

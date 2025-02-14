@@ -9,6 +9,7 @@ import (
 	meshaccesslog_proto "github.com/kumahq/kuma/pkg/plugins/policies/meshaccesslog/api/v1alpha1"
 	meshtrafficpermissions_proto "github.com/kumahq/kuma/pkg/plugins/policies/meshtrafficpermission/api/v1alpha1"
 	"github.com/kumahq/kuma/pkg/test/resources/builders"
+	"github.com/kumahq/kuma/pkg/util/pointer"
 )
 
 var _ = Describe("Resource Utils", func() {
@@ -61,7 +62,7 @@ var _ = Describe("Resource Utils", func() {
 		It("should return false if ResourceSpec is not empty", func() {
 			// given
 			var spec core_model.ResourceSpec = &meshtrafficpermissions_proto.MeshTrafficPermission{
-				TargetRef: common_api.TargetRef{Kind: "Mesh"},
+				TargetRef: &common_api.TargetRef{Kind: "Mesh"},
 			}
 			// when
 			isEmpty := core_model.IsEmpty(spec)
@@ -85,21 +86,21 @@ var _ = Describe("Resource Utils", func() {
 		It("should return true if specs are equal", func() {
 			// given
 			var spec1 core_model.ResourceSpec = &meshtrafficpermissions_proto.MeshTrafficPermission{
-				TargetRef: common_api.TargetRef{Kind: "Mesh"},
-				From: []meshtrafficpermissions_proto.From{
+				TargetRef: &common_api.TargetRef{Kind: "Mesh"},
+				From: &[]meshtrafficpermissions_proto.From{
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "backend",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "web",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Deny"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Deny")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
@@ -108,26 +109,26 @@ var _ = Describe("Resource Utils", func() {
 								"version": "v3",
 							},
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 				},
 			}
 			var spec2 core_model.ResourceSpec = &meshtrafficpermissions_proto.MeshTrafficPermission{
-				TargetRef: common_api.TargetRef{Kind: "Mesh"},
-				From: []meshtrafficpermissions_proto.From{
+				TargetRef: &common_api.TargetRef{Kind: "Mesh"},
+				From: &[]meshtrafficpermissions_proto.From{
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "backend",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "web",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Deny"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Deny")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
@@ -136,7 +137,7 @@ var _ = Describe("Resource Utils", func() {
 								"version": "v3",
 							},
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 				},
 			}
@@ -149,21 +150,21 @@ var _ = Describe("Resource Utils", func() {
 		It("should return false if specs are different", func() {
 			// given
 			var spec1 core_model.ResourceSpec = &meshtrafficpermissions_proto.MeshTrafficPermission{
-				TargetRef: common_api.TargetRef{Kind: "Mesh"},
-				From: []meshtrafficpermissions_proto.From{
+				TargetRef: &common_api.TargetRef{Kind: "Mesh"},
+				From: &[]meshtrafficpermissions_proto.From{
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "backend",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "web",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Deny"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Deny")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
@@ -172,26 +173,26 @@ var _ = Describe("Resource Utils", func() {
 								"version": "v3",
 							},
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 				},
 			}
 			var spec2 core_model.ResourceSpec = &meshtrafficpermissions_proto.MeshTrafficPermission{
-				TargetRef: common_api.TargetRef{Kind: "Mesh"},
-				From: []meshtrafficpermissions_proto.From{
+				TargetRef: &common_api.TargetRef{Kind: "Mesh"},
+				From: &[]meshtrafficpermissions_proto.From{
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "backend",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
 							Kind: "MeshService",
 							Name: "web",
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Deny"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Deny")},
 					},
 					{
 						TargetRef: common_api.TargetRef{
@@ -200,7 +201,7 @@ var _ = Describe("Resource Utils", func() {
 								"version": "v5", // different from 'v3'
 							},
 						},
-						Default: meshtrafficpermissions_proto.Conf{Action: "Allow"},
+						Default: meshtrafficpermissions_proto.Conf{Action: pointer.To[meshtrafficpermissions_proto.Action]("Allow")},
 					},
 				},
 			}

@@ -79,7 +79,8 @@
             "name": "backend_kuma-demo_svc_3001",
             "tags": {
              "version": "v0"
-            }
+            },
+            "weight": 1
            }
           ]
          }
@@ -110,7 +111,8 @@
             "name": "backend_kuma-demo_svc_3001",
             "tags": {
              "version": "v0"
-            }
+            },
+            "weight": 1
            }
           ]
          }
@@ -134,7 +136,8 @@
             "name": "backend_kuma-demo_svc_3001",
             "tags": {
              "version": "v0"
-            }
+            },
+            "weight": 1
            }
           ]
          }
@@ -151,7 +154,7 @@
         },
         "mesh": "default",
         "name": "http-route-3",
-        "type": "Mesh"
+        "type": "MeshHTTPRoute"
        },
        "ruleIndex": 0
       },
@@ -163,7 +166,7 @@
         },
         "mesh": "default",
         "name": "http-route-2",
-        "type": "Mesh"
+        "type": "MeshHTTPRoute"
        },
        "ruleIndex": 0
       },
@@ -175,7 +178,7 @@
         },
         "mesh": "default",
         "name": "http-route-1",
-        "type": "Mesh"
+        "type": "MeshHTTPRoute"
        },
        "ruleIndex": 0
       }
@@ -212,7 +215,8 @@
            "name": "backend_kuma-demo_svc_3001",
            "tags": {
             "version": "v0"
-           }
+           },
+           "weight": 1
           }
          ]
         }
@@ -236,7 +240,8 @@
            "name": "backend_kuma-demo_svc_3001",
            "tags": {
             "version": "v0"
-           }
+           },
+           "weight": 1
           }
          ]
         }
@@ -296,7 +301,8 @@
            "name": "backend_kuma-demo_svc_3001",
            "tags": {
             "version": "v0"
-           }
+           },
+           "weight": 1
           }
          ]
         }

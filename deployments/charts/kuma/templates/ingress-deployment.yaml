@@ -33,6 +33,9 @@ spec:
       {{- with .Values.ingress.topologySpreadConstraints }}
       topologySpreadConstraints: {{ tpl (toYaml . | nindent 8) $ }}
       {{- end }}
+      {{- with .Values.ingress.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       securityContext:
       {{- toYaml .Values.ingress.podSecurityContext | trim | nindent 8 }}
       serviceAccountName: {{ include "kuma.name" . }}-ingress
@@ -46,6 +49,7 @@ spec:
       {{ toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.ingress.terminationGracePeriodSeconds }}
+      {{ include "kuma.dnsConfig" (dict "dns" .Values.ingress.dns) | nindent 6 | trim }}
       containers:
         - name: ingress
           image: {{ include "kuma.formatImage" (dict "image" .Values.dataPlane.image "root" $) | quote }}

@@ -7,11 +7,11 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       edsClusterConfig:
         edsConfig:
           ads: {}
-          initialFetchTimeout: 0s
           resourceApiVersion: V3
       name: echo-service-4d89cd662308223d
       perConnectionBufferLimitBytes: 32768
@@ -32,11 +32,11 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       edsClusterConfig:
         edsConfig:
           ads: {}
-          initialFetchTimeout: 0s
           resourceApiVersion: V3
       name: echo-service-ff1f8bb571f3bfa4
       perConnectionBufferLimitBytes: 32768
@@ -132,7 +132,6 @@ Listeners:
             rds:
               configSource:
                 ads: {}
-                initialFetchTimeout: 0s
                 resourceApiVersion: V3
               routeConfigName: gateway-multihost:HTTPS:9443:one.example.com
             requestHeadersTimeout: 0.500s
@@ -195,7 +194,6 @@ Listeners:
             rds:
               configSource:
                 ads: {}
-                initialFetchTimeout: 0s
                 resourceApiVersion: V3
               routeConfigName: gateway-multihost:HTTPS:9443:three.example.com
             requestHeadersTimeout: 0.500s
@@ -258,7 +256,6 @@ Listeners:
             rds:
               configSource:
                 ads: {}
-                initialFetchTimeout: 0s
                 resourceApiVersion: V3
               routeConfigName: gateway-multihost:HTTPS:9443:two.example.com
             requestHeadersTimeout: 0.500s

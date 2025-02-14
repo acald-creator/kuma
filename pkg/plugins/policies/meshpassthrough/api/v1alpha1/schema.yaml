@@ -30,6 +30,7 @@ properties:
               properties:
                 port:
                   description: Port defines the port to which a user makes a request.
+                  format: int32
                   type: integer
                 protocol:
                   default: tcp
@@ -81,6 +82,7 @@ properties:
               - MeshMultiZoneService
               - MeshServiceSubset
               - MeshHTTPRoute
+              - Dataplane
             type: string
           labels:
             additionalProperties:
@@ -126,6 +128,16 @@ properties:
               `MeshSubset` and `MeshServiceSubset`
             type: object
         type: object
-    required:
-      - targetRef
     type: object
+  creationTime:
+    readOnly: true
+    type: string
+    description: 'Time at which the resource was created'
+    format: date-time
+    example: '0001-01-01T00:00:00Z'
+  modificationTime:
+    readOnly: true
+    type: string
+    description: 'Time at which the resource was updated'
+    format: date-time
+    example: '0001-01-01T00:00:00Z'

@@ -2,9 +2,9 @@ package observability
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
-	"golang.org/x/exp/slices"
 
 	"github.com/kumahq/kuma/test/framework"
 )
@@ -76,5 +76,5 @@ func (t *k8SDeployment) Deploy(cluster framework.Cluster) error {
 }
 
 func (t *k8SDeployment) Delete(cluster framework.Cluster) error {
-	return cluster.DeleteNamespace(t.namespace)
+	return cluster.(*framework.K8sCluster).TriggerDeleteNamespace(t.namespace)
 }

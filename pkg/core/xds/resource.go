@@ -5,10 +5,10 @@ import (
 
 	envoy_sd "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	envoy_types "github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	protov1 "github.com/golang/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	core_mesh "github.com/kumahq/kuma/pkg/core/resources/apis/mesh"
+	meshexternalservice_api "github.com/kumahq/kuma/pkg/core/resources/apis/meshexternalservice/api/v1alpha1"
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
 )
 
@@ -30,7 +30,7 @@ type ResourceList []*Resource
 func (rs ResourceList) ToDeltaDiscoveryResponse() (*envoy_sd.DeltaDiscoveryResponse, error) {
 	resp := &envoy_sd.DeltaDiscoveryResponse{}
 	for _, r := range rs {
-		pbany, err := anypb.New(protov1.MessageV2(r.Resource))
+		pbany, err := anypb.New(r.Resource)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +153,7 @@ func (s *ResourceSet) AddSet(set *ResourceSet) *ResourceSet {
 }
 
 func (s *ResourceSet) typeName(resource ResourcePayload) string {
-	return "type.googleapis.com/" + string(protov1.MessageV2(resource).ProtoReflect().Descriptor().FullName())
+	return "type.googleapis.com/" + string(resource.ProtoReflect().Descriptor().FullName())
 }
 
 func (s *ResourceSet) List() ResourceList {
@@ -173,18 +173,36 @@ func (s *ResourceSet) List() ResourceList {
 	return list
 }
 
-func (s *ResourceSet) IndexByOrigin() map[core_model.TypedResourceIdentifier]map[string][]*Resource {
-	byOwner := map[core_model.TypedResourceIdentifier]map[string][]*Resource{}
+func NonMeshExternalService(r *Resource) bool {
+	return r.ResourceOrigin == nil || (r.ResourceOrigin != nil && r.ResourceOrigin.ResourceType != meshexternalservice_api.MeshExternalServiceType)
+}
+
+func NonGatewayResources(r *Resource) bool {
+	return r.ResourceOrigin == nil || (r.ResourceOrigin != nil && r.Origin != "gateway")
+}
+
+type ResourcesByType map[string][]*Resource
+
+func (s *ResourceSet) IndexByOrigin(filters ...func(*Resource) bool) map[core_model.TypedResourceIdentifier]ResourcesByType {
+	byOwner := map[core_model.TypedResourceIdentifier]ResourcesByType{}
 	for typ, nameToRes := range s.typeToNamesIndex {
 		for _, resource := range nameToRes {
-			if resource.ResourceOrigin == nil {
-				continue
+			add := true
+			for _, filter := range filters {
+				if !filter(resource) {
+					add = false
+				}
 			}
-			resOwner := *resource.ResourceOrigin
-			if byOwner[resOwner] == nil {
-				byOwner[resOwner] = map[string][]*Resource{}
+			if add {
+				if resource.ResourceOrigin == nil {
+					continue
+				}
+				resOwner := *resource.ResourceOrigin
+				if byOwner[resOwner] == nil {
+					byOwner[resOwner] = map[string][]*Resource{}
+				}
+				byOwner[resOwner][typ] = append(byOwner[resOwner][typ], resource)
 			}
-			byOwner[resOwner][typ] = append(byOwner[resOwner][typ], resource)
 		}
 	}
 	return byOwner

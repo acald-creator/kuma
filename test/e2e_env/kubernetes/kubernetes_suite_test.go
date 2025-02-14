@@ -7,6 +7,7 @@ import (
 
 	"github.com/kumahq/kuma/pkg/test"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/api"
+	"github.com/kumahq/kuma/test/e2e_env/kubernetes/appprobeproxy"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/connectivity"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/container_patch"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/defaults"
@@ -28,7 +29,6 @@ import (
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshmetric"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshpassthrough"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshproxypatch"
-	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshratelimit"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshretry"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshtcproute"
 	"github.com/kumahq/kuma/test/e2e_env/kubernetes/meshtimeout"
@@ -80,10 +80,8 @@ var (
 	_ = Describe("Virtual Outbound", virtualoutbound.VirtualOutbound, Ordered)
 	_ = Describe("Kong Ingress Controller", kic.KICKubernetes, Ordered)
 	_ = Describe("MeshTrafficPermission API", meshtrafficpermission.API, Ordered)
-	_ = Describe("MeshRateLimit API", meshratelimit.API, Ordered)
 	_ = Describe("MeshTimeout API", meshtimeout.MeshTimeout, Ordered)
 	_ = Describe("MeshHealthCheck API", meshhealthcheck.API, Ordered)
-	_ = Describe("MeshCircuitBreaker API", meshcircuitbreaker.API, Ordered)
 	_ = Describe("MeshCircuitBreaker", meshcircuitbreaker.MeshCircuitBreaker, Ordered)
 	_ = Describe("MeshMetric", meshmetric.MeshMetric, Ordered)
 	_ = Describe("MeshRetry", meshretry.API, Ordered)
@@ -96,4 +94,5 @@ var (
 	_ = Describe("Connectivity - Exclude Outbound Port", connectivity.ExcludeOutboundPort, Ordered)
 	_ = Describe("Wait for Envoy", graceful.WaitForEnvoyReady, Ordered)
 	_ = Describe("MeshPassthrough", meshpassthrough.MeshPassthrough, Ordered)
+	_ = Describe("ApplicationProbeProxy", appprobeproxy.ApplicationProbeProxy, Ordered)
 )

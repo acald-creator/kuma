@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -14,9 +13,10 @@ import (
 	envoy_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/go-logr/logr"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" // nolint: depguard
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/kumahq/kuma/api/mesh/v1alpha1"
 	observability_v1 "github.com/kumahq/kuma/api/observability/v1"
@@ -49,15 +49,18 @@ var _ = Describe("MADS http service", func() {
 	const refreshInterval = 250 * time.Millisecond
 
 	const defaultFetchTimeout = 1 * time.Second
-
 	BeforeEach(func() {
 		resManager = core_manager.NewResourceManager(memory.NewStore())
+	})
 
+	setupServer := func() {
 		cfg := mads_config.DefaultMonitoringAssignmentServerConfig()
 		cfg.AssignmentRefreshInterval = config_types.Duration{Duration: refreshInterval}
 		cfg.DefaultFetchTimeout = config_types.Duration{Duration: defaultFetchTimeout}
 
 		svc := service.NewService(cfg, resManager, logr.Discard(), nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		svc.Start(ctx)
 
 		ws := new(restful.WebService)
 		svc.RegisterRoutes(ws)
@@ -68,74 +71,72 @@ var _ = Describe("MADS http service", func() {
 		srv := test.NewHttpServer(container)
 		url = srv.Server().URL
 		monitoringAssignmentPath = fmt.Sprintf("%s%s", url, service.FetchMonitoringAssignmentsPath)
+		DeferCleanup(func() {
+			cancel()
+			srv.Server().Close()
+		})
 
 		// wait for the server
-		Eventually(srv.Ready).ShouldNot(HaveOccurred())
+		Eventually(srv.Ready).Should(Succeed())
+	}
+
+	Context("with resources", func() {
+		BeforeEach(setupServer)
+		It("should respond with an empty discovery response", func() {
+			// given
+			discoveryReq := envoy_v3.DiscoveryRequest{
+				VersionInfo:   "",
+				ResponseNonce: "",
+				TypeUrl:       mads_v1.MonitoringAssignmentType,
+				ResourceNames: []string{},
+				Node: &envoy_core.Node{
+					Id: "test",
+				},
+			}
+			reqBytes, err := pbMarshaller.MarshalToString(&discoveryReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			req, err := http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
+			Expect(err).ToNot(HaveOccurred())
+			req.Header.Add("content-type", "application/json")
+
+			discoveryRes := &envoy_v3.DiscoveryResponse{}
+			// then
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						err := jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", BeEmpty()),
+					))),
+				))
+
+			// and given the same version
+			discoveryReq.VersionInfo = discoveryRes.VersionInfo
+			reqBytes, err = pbMarshaller.MarshalToString(&discoveryReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			req, err = http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
+			Expect(err).ToNot(HaveOccurred())
+			req.Header.Add("content-type", "application/json")
+
+			// then
+			By(fmt.Sprintf("Doing other discovery request with clientId %q and version %q", discoveryReq.Node.Id, discoveryReq.VersionInfo))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusNotModified),
+					HaveHTTPBody(BeEmpty()),
+				))
+		})
 	})
 
-	It("should respond with an empty discovery response", func() {
-		// given
-		discoveryReq := envoy_v3.DiscoveryRequest{
-			VersionInfo:   "",
-			ResponseNonce: "",
-			TypeUrl:       mads_v1.MonitoringAssignmentType,
-			ResourceNames: []string{},
-			Node: &envoy_core.Node{
-				Id: "test",
-			},
-		}
-		reqBytes, err := pbMarshaller.MarshalToString(&discoveryReq)
-		Expect(err).ToNot(HaveOccurred())
-
-		// when
-		req, err := http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
-		Expect(err).ToNot(HaveOccurred())
-		req.Header.Add("content-type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
-
-		// then
-		Expect(err).ToNot(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-		// when
-		respBody, err := io.ReadAll(resp.Body)
-
-		// then
-		Expect(err).ToNot(HaveOccurred())
-
-		// when
-		discoveryRes := &envoy_v3.DiscoveryResponse{}
-		err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-		// then
-		Expect(err).ToNot(HaveOccurred())
-		Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-		Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-		Expect(discoveryRes.Resources).To(BeEmpty())
-
-		// and given the same version
-		discoveryReq.VersionInfo = discoveryRes.VersionInfo
-		reqBytes, err = pbMarshaller.MarshalToString(&discoveryReq)
-		Expect(err).ToNot(HaveOccurred())
-
-		// when
-		req, err = http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
-		Expect(err).ToNot(HaveOccurred())
-		req.Header.Add("content-type", "application/json")
-		resp, err = http.DefaultClient.Do(req)
-
-		// then
-		Expect(err).ToNot(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(http.StatusNotModified))
-
-		// when
-		respBody, err = io.ReadAll(resp.Body)
-
-		// then
-		Expect(err).ToNot(HaveOccurred())
-		Expect(respBody).To(BeEmpty())
-	})
-
-	Describe("with resources", func() {
+	Context("with resources", func() {
 		createMesh := func(mesh *core_mesh.MeshResource) error {
 			return resManager.Create(context.Background(), mesh, store.CreateByKey(mesh.GetMeta().GetName(), model.NoMesh))
 		}
@@ -215,11 +216,9 @@ var _ = Describe("MADS http service", func() {
 
 		BeforeEach(func() {
 			// given
-			err := createMesh(mesh)
-			Expect(err).ToNot(HaveOccurred())
-
-			err = createDataPlane(dp1)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(createMesh(mesh)).To(Succeed())
+			Expect(createDataPlane(dp1)).To(Succeed())
+			setupServer()
 		})
 
 		It("should return the monitoring assignments", func() {
@@ -240,39 +239,35 @@ var _ = Describe("MADS http service", func() {
 			req, err := http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
-			resp, err := http.DefaultClient.Do(req)
 
 			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
 			discoveryRes := &envoy_v3.DiscoveryResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			Expect(discoveryRes.Resources).To(HaveLen(1))
-			Expect(discoveryRes.Resources[0].TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.Resources[0].Value).ToNot(BeEmpty())
-
-			// when
-			assignment := &observability_v1.MonitoringAssignment{}
-			err = util_proto.UnmarshalAnyTo(discoveryRes.Resources[0], assignment)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(assignment.Mesh).To(Equal(dp1.GetMeta().GetMesh()))
-			Expect(assignment.Targets).To(HaveLen(1))
-			Expect(assignment.Targets[0].Name).To(Equal(dp1.GetMeta().GetName()))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						GinkgoLogr.Info("Got response", "response", string(b))
+						err := jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", HaveExactElements(And(
+							HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+							HaveField("Value", Not(BeEmpty())),
+							WithTransform(func(entry *anypb.Any) (*observability_v1.MonitoringAssignment, error) {
+								assignment := &observability_v1.MonitoringAssignment{}
+								err = util_proto.UnmarshalAnyTo(entry, assignment)
+								return assignment, err
+							}, And(
+								HaveField("Mesh", dp1.GetMeta().GetMesh()),
+								HaveField("Targets",
+									HaveExactElements(HaveField("Name", dp1.GetMeta().GetName())),
+								),
+							)),
+						)))),
+					))),
+				)
 
 			// given the same version
 			discoveryReq.VersionInfo = discoveryRes.VersionInfo
@@ -283,18 +278,14 @@ var _ = Describe("MADS http service", func() {
 			req, err = http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
-			resp, err = http.DefaultClient.Do(req)
 
 			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNotModified))
-
-			// when
-			respBody, err = io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(respBody).To(BeEmpty())
+			By(fmt.Sprintf("Doing other discovery request with clientId %q and version %q", discoveryReq.Node.Id, discoveryReq.VersionInfo))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusNotModified),
+					HaveHTTPBody(BeEmpty()),
+				))
 		})
 
 		It("should return the refreshed monitoring assignments when there are updates", func() {
@@ -315,30 +306,24 @@ var _ = Describe("MADS http service", func() {
 			req, err := http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
-			resp, err := http.DefaultClient.Do(req)
 
 			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
 			discoveryRes := &envoy_v3.DiscoveryResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			Expect(discoveryRes.Resources).To(HaveLen(1))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						err = jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", HaveLen(1)),
+					))),
+				))
 
-			// given an updated mesh
-			err = createDataPlane(dp2)
-			Expect(err).ToNot(HaveOccurred())
+			// given an updated mesh (adding a DP)
+			Expect(createDataPlane(dp2)).To(Succeed())
 
 			// and given the same version
 			discoveryReq.VersionInfo = discoveryRes.VersionInfo
@@ -352,25 +337,20 @@ var _ = Describe("MADS http service", func() {
 			req, err = http.NewRequest("POST", monitoringAssignmentPath, strings.NewReader(reqBytes))
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
-			resp, err = http.DefaultClient.Do(req)
 
 			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err = io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			Expect(discoveryRes.Resources).To(HaveLen(2))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						err = jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", HaveLen(2)),
+					))),
+				))
 		})
 
 		It("should block until there are updates", func() {
@@ -392,26 +372,19 @@ var _ = Describe("MADS http service", func() {
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
 
-			resp, err := http.DefaultClient.Do(req)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
 			discoveryRes := &envoy_v3.DiscoveryResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			Expect(discoveryRes.Resources).To(HaveLen(1))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						err := jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", HaveLen(1)),
+					))),
+				))
 
 			// and given the same version
 			discoveryReq.VersionInfo = discoveryRes.VersionInfo
@@ -428,37 +401,30 @@ var _ = Describe("MADS http service", func() {
 			respChan := make(chan *http.Response, 1)
 
 			go func() {
-				resp2, err := http.DefaultClient.Do(req)
+				localResp, err := http.DefaultClient.Do(req)
 				Expect(err).ToNot(HaveOccurred())
 
-				respChan <- resp2
+				respChan <- localResp
 			}()
+			// Request is pending because there isn't any change
+			Consistently(respChan, defaultFetchTimeout/2).ShouldNot(Receive())
 
 			// given an updated mesh while the request is in progress
-			time.Sleep(defaultFetchTimeout / 2)
-
-			err = createDataPlane(dp2)
-			Expect(err).ToNot(HaveOccurred())
-
-			resp2 := <-respChan
+			Expect(createDataPlane(dp2)).To(Succeed())
 
 			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp2.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err = io.ReadAll(resp2.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			Expect(discoveryRes.Resources).To(HaveLen(2))
+			Eventually(respChan).Should(Receive(And(
+				HaveHTTPStatus(http.StatusOK),
+				HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+					err = jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+					return discoveryRes, err
+				}, And(
+					HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+					HaveField("VersionInfo", Not(BeEmpty())),
+					HaveField("Resources", HaveLen(2)),
+				)),
+				),
+			)))
 		})
 
 		It("should return straightaway on first request with a fetch timeout", func() {
@@ -481,30 +447,21 @@ var _ = Describe("MADS http service", func() {
 			req.Header.Add("content-type", "application/json")
 
 			start := time.Now()
-			resp, err := http.DefaultClient.Do(req)
+			discoveryRes := &envoy_v3.DiscoveryResponse{}
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						err = jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", HaveLen(1)),
+					))),
+				))
 			// Ensure we're returning in less than 1 sec as this is the first request
 			Expect(time.Now()).To(BeTemporally("<", start.Add(time.Second)))
-			Expect(err).ToNot(HaveOccurred())
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp).To(HaveHTTPStatus(http.StatusOK))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			discoveryRes := &envoy_v3.DiscoveryResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			// and should only contain the first resource
-			Expect(discoveryRes.Resources).To(HaveLen(1))
 		})
 
 		It("should return no update if the fetch times out", func() {
@@ -526,26 +483,20 @@ var _ = Describe("MADS http service", func() {
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
 
-			resp, err := http.DefaultClient.Do(req)
-
 			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
 			discoveryRes := &envoy_v3.DiscoveryResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			Expect(discoveryRes.Resources).To(HaveLen(1))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusOK),
+					HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+						err = jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+						return discoveryRes, err
+					}, And(
+						HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+						HaveField("VersionInfo", Not(BeEmpty())),
+						HaveField("Resources", HaveLen(1)),
+					))),
+				))
 
 			// and given the same version
 			discoveryReq.VersionInfo = discoveryRes.VersionInfo
@@ -557,12 +508,9 @@ var _ = Describe("MADS http service", func() {
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
 
-			resp, err = http.DefaultClient.Do(req)
-			Expect(err).ToNot(HaveOccurred())
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNotModified))
+			By(fmt.Sprintf("Doing other discovery request with clientId %q and version %q", discoveryReq.Node.Id, discoveryReq.VersionInfo))
+			Expect(http.DefaultClient.Do(req)).
+				Should(HaveHTTPStatus(http.StatusNotModified))
 		})
 
 		It("should allow synchronous requests", func() {
@@ -593,33 +541,34 @@ var _ = Describe("MADS http service", func() {
 				respChan <- resp
 			}()
 
-			// given an updated mesh while the request is in progress
-			time.Sleep(defaultFetchTimeout / 2)
-
-			err = createDataPlane(dp2)
-			Expect(err).ToNot(HaveOccurred())
-
-			resp := <-respChan
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
 			discoveryRes := &envoy_v3.DiscoveryResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(respBody), discoveryRes)
-			// then
+			// Will resolve very quickly
+			Eventually(respChan).WithTimeout(defaultFetchTimeout / 2).Should(Receive(And(
+				HaveHTTPStatus(http.StatusOK),
+				HaveHTTPBody(WithTransform(func(b []byte) (*envoy_v3.DiscoveryResponse, error) {
+					err = jsonpb.Unmarshal(bytes.NewReader(b), discoveryRes)
+					return discoveryRes, err
+				}, And(
+					HaveField("TypeUrl", mads_v1.MonitoringAssignmentType),
+					HaveField("VersionInfo", Not(BeEmpty())),
+					HaveField("Resources", HaveLen(1)),
+				))),
+			)))
+
+			By("Second request should also be instant")
+			discoveryReq.VersionInfo = discoveryRes.VersionInfo
+			reqBytes, err = pbMarshaller.MarshalToString(&discoveryReq)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(discoveryRes.TypeUrl).To(Equal(mads_v1.MonitoringAssignmentType))
-			Expect(discoveryRes.VersionInfo).ToNot(BeEmpty())
-			// and should only contain the first resource
-			Expect(discoveryRes.Resources).To(HaveLen(1))
+			// when
+			req, err = http.NewRequest("POST", monitoringAssignmentPath+"?fetch-timeout=0s", strings.NewReader(reqBytes))
+			Expect(err).ToNot(HaveOccurred())
+			req.Header.Add("content-type", "application/json")
+
+			start := time.Now()
+			Expect(http.DefaultClient.Do(req)).
+				Should(HaveHTTPStatus(http.StatusNotModified))
+			// Request should have been very fast
+			Expect(start).To(BeTemporally("~", time.Now(), time.Millisecond*200))
 		})
 
 		It("should return an error if the fetch timeout is unparseable", func() {
@@ -641,24 +590,15 @@ var _ = Describe("MADS http service", func() {
 			Expect(err).ToNot(HaveOccurred())
 			req.Header.Add("content-type", "application/json")
 
-			resp, err := http.DefaultClient.Do(req)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
-
-			// when
-			respBody, err := io.ReadAll(resp.Body)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			resError := &rest_error_types.Error{}
-			err = json.Unmarshal(respBody, resError)
-			// then
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resError.Title).To(Equal("Could not parse fetch-timeout"))
+			Expect(http.DefaultClient.Do(req)).
+				Should(And(
+					HaveHTTPStatus(http.StatusBadRequest),
+					HaveHTTPBody(WithTransform(func(b []byte) (rest_error_types.Error, error) {
+						e := rest_error_types.Error{}
+						err := json.Unmarshal(b, &e)
+						return e, err
+					}, HaveField("Title", "Could not parse fetch-timeout"))),
+				))
 		})
 	})
 })

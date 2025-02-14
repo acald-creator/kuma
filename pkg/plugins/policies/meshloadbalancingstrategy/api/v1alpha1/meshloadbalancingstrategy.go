@@ -14,9 +14,9 @@ type MeshLoadBalancingStrategy struct {
 	// TargetRef is a reference to the resource the policy takes an effect on.
 	// The resource could be either a real store object or virtual resource
 	// defined inplace.
-	TargetRef common_api.TargetRef `json:"targetRef"`
+	TargetRef *common_api.TargetRef `json:"targetRef,omitempty"`
 	// To list makes a match between the consumed services and corresponding configurations
-	To []To `json:"to,omitempty"`
+	To *[]To `json:"to,omitempty"`
 }
 
 type To struct {
@@ -197,13 +197,14 @@ type RingHash struct {
 	HashPolicies *[]HashPolicy `json:"hashPolicies,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Header;Cookie;SourceIP;QueryParameter;FilterState
+// +kubebuilder:validation:Enum=Header;Cookie;Connection;SourceIP;QueryParameter;FilterState
 type HashPolicyType string
 
 const (
 	HeaderType         HashPolicyType = "Header"
 	CookieType         HashPolicyType = "Cookie"
 	ConnectionType     HashPolicyType = "Connection"
+	SourceIPType       HashPolicyType = "SourceIP"
 	QueryParameterType HashPolicyType = "QueryParameter"
 	FilterStateType    HashPolicyType = "FilterState"
 )

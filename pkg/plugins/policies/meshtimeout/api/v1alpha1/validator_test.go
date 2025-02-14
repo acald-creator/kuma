@@ -90,6 +90,25 @@ to:
         requestTimeout: 1s
         streamIdleTimeout: 2s
 `),
+			Entry("example MeshExternalService", `
+targetRef:
+  kind: MeshSubset
+  tags:
+    kuma.io/service: web-frontend
+to:
+  - targetRef:
+      kind: MeshExternalService
+      name: web-backend
+    default:
+      http:
+        requestTimeout: 1s
+  - targetRef:
+      kind: MeshExternalService
+      labels:
+        kuma.io/display-name: web-backend
+    default:
+      http:
+        requestTimeout: 1s`),
 		)
 
 		type testCase struct {
@@ -121,7 +140,7 @@ targetRef:
 				expected: `
 violations:
   - field: spec
-    message: at least one of 'from', 'to' has to be defined`,
+    message: at least one of 'from', 'to' or 'rules' has to be defined`,
 			}),
 			Entry("unsupported kind in from selector", testCase{
 				inputYaml: `
@@ -152,6 +171,24 @@ to:
         requestTimeout: 1s`,
 				expected: `
 violations:
+  - field: spec.to[0].targetRef.kind
+    message: value is not supported`,
+			}),
+			Entry("sectionName with outbound policy", testCase{
+				inputYaml: `
+targetRef:
+  kind: Dataplane
+  sectionName: test
+to:
+  - targetRef:
+      kind: MeshServiceSubset
+    default:
+      http:
+        requestTimeout: 1s`,
+				expected: `
+violations:
+  - field: spec.targetRef.sectionName
+    message: can only be used with inbound policies
   - field: spec.to[0].targetRef.kind
     message: value is not supported`,
 			}),
@@ -286,6 +323,70 @@ violations:
     message: must not be defined
   - field: spec.to[0].targetRef.kind
     message: value is not supported`,
+			}),
+			Entry("to TargetRef using labels and name for MeshExternalService", testCase{
+				inputYaml: `
+targetRef:
+  kind: Mesh
+to:
+  - targetRef:
+      kind: MeshExternalService
+      name: web-backend
+      labels:
+        kuma.io/display-name: web-backend
+    default:
+      connectionTimeout: 10s
+      idleTimeout: 1h`,
+				expected: `
+violations:
+  - field: spec.to[0].targetRef.labels
+    message: either labels or name must be specified`,
+			}),
+			Entry("when rules is defined, to cannot be defined", testCase{
+				inputYaml: `
+targetRef:
+  kind: Mesh
+rules:
+  - default:
+      connectionTimeout: 10s
+to:
+  - targetRef:
+      kind: MeshService
+      name: web-backend
+    default:
+      connectionTimeout: 10s`,
+				expected: `
+violations:
+  - field: spec
+    message: fields 'to' and 'from' must be empty when 'rules' is defined`,
+			}),
+			Entry("when rules is defined, from cannot be defined", testCase{
+				inputYaml: `
+targetRef:
+  kind: Mesh
+rules:
+  - default:
+      connectionTimeout: 10s
+from:
+  - targetRef:
+      kind: Mesh
+    default:
+      connectionTimeout: 10s`,
+				expected: `
+violations:
+  - field: spec
+    message: fields 'to' and 'from' must be empty when 'rules' is defined`,
+			}),
+			Entry("rules with empty spec", testCase{
+				inputYaml: `
+targetRef:
+  kind: Mesh
+rules:
+  - default: {}`,
+				expected: `
+violations:
+  - field: spec.rules[0].default
+    message: at least one timeout should be configured`,
 			}),
 		)
 	})

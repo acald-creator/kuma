@@ -7,10 +7,11 @@ package v1alpha1
 import (
 	common_api "github.com/kumahq/kuma/api/common/v1alpha1"
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
+	"github.com/kumahq/kuma/pkg/util/pointer"
 )
 
 func (x *MeshHealthCheck) GetTargetRef() common_api.TargetRef {
-	return x.TargetRef
+	return pointer.DerefOr(x.TargetRef, common_api.TargetRef{Kind: common_api.Mesh, UsesSyntacticSugar: true})
 }
 
 func (x *To) GetTargetRef() common_api.TargetRef {
@@ -23,8 +24,8 @@ func (x *To) GetDefault() interface{} {
 
 func (x *MeshHealthCheck) GetToList() []core_model.PolicyItem {
 	var result []core_model.PolicyItem
-	for i := range x.To {
-		item := x.To[i]
+	for _, itm := range pointer.Deref(x.To) {
+		item := itm
 		result = append(result, &item)
 	}
 	return result

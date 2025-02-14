@@ -7,8 +7,10 @@ import (
 	mesh_proto "github.com/kumahq/kuma/api/mesh/v1alpha1"
 	"github.com/kumahq/kuma/pkg/core/plugins"
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
+	"github.com/kumahq/kuma/pkg/core/resources/registry"
 	core_xds "github.com/kumahq/kuma/pkg/core/xds"
 	core_rules "github.com/kumahq/kuma/pkg/plugins/policies/core/rules"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/rules/outbound"
 	xds_context "github.com/kumahq/kuma/pkg/xds/context"
 )
 
@@ -16,21 +18,26 @@ func EgressMatchedPolicies(rType core_model.ResourceType, tags map[string]string
 	mpOpts := plugins.NewMatchedPoliciesConfig(opts...)
 
 	rl := resources.ListOrEmpty(rType)
-	policies := []core_model.Resource{}
+	policies, err := registry.Global().NewList(rType)
+	if err != nil {
+		return core_xds.TypedMatchingPolicies{}, err
+	}
 
 	for _, item := range rl.GetItems() {
 		if !mpOpts.IncludeShadow && core_model.IsShadowedResource(item) {
 			continue
 		}
-		policies = append(policies, item)
+		if err := policies.AddItem(item); err != nil {
+			return core_xds.TypedMatchingPolicies{}, err
+		}
 	}
 
-	if len(policies) == 0 {
+	if len(policies.GetItems()) == 0 {
 		return core_xds.TypedMatchingPolicies{Type: rType}, nil
 	}
 
 	// pick one item to cast and figure characteristics of all policies in the list
-	p := policies[0]
+	p := policies.GetItems()[0]
 
 	if _, ok := p.GetSpec().(core_model.Policy); !ok {
 		return core_xds.TypedMatchingPolicies{}, errors.Errorf("resource type %v doesn't support TargetRef matching", p.Descriptor().Name)
@@ -44,7 +51,7 @@ func EgressMatchedPolicies(rType core_model.ResourceType, tags map[string]string
 	}
 
 	var fr core_rules.FromRules
-	var err error
+	var tr core_rules.ToRules
 
 	switch {
 	case isFrom && isTo:
@@ -52,10 +59,18 @@ func EgressMatchedPolicies(rType core_model.ResourceType, tags map[string]string
 		// Picking "from" rules works for us today, because there is only MeshFaultInjection policy that has both "to"
 		// and "from" and is applied on zone egress. In the future, we might want to move the strategy down to the policy plugins.
 		fr, err = processFromRules(tags, policies)
+		if err != nil {
+			return core_xds.TypedMatchingPolicies{}, err
+		}
+		tr, err = processToResourceRules(policies.GetItems(), resources)
 	case isFrom:
 		fr, err = processFromRules(tags, policies)
 	case isTo:
 		fr, err = processToRules(tags, policies)
+		if err != nil {
+			return core_xds.TypedMatchingPolicies{}, err
+		}
+		tr, err = processToResourceRules(policies.GetItems(), resources)
 	}
 
 	if err != nil {
@@ -65,26 +80,32 @@ func EgressMatchedPolicies(rType core_model.ResourceType, tags map[string]string
 	return core_xds.TypedMatchingPolicies{
 		Type:      rType,
 		FromRules: fr,
+		ToRules:   tr,
 	}, nil
 }
 
 func processFromRules(
 	tags map[string]string,
-	policies []core_model.Resource,
+	policies core_model.ResourceList,
 ) (core_rules.FromRules, error) {
-	matchedPolicies := []core_model.Resource{}
+	matchedPolicies, err := registry.Global().NewList(policies.GetItemType())
+	if err != nil {
+		return core_rules.FromRules{}, err
+	}
 
-	for _, policy := range policies {
+	for _, policy := range policies.GetItems() {
 		spec := policy.GetSpec().(core_model.Policy)
 		if !serviceSelectedByTargetRef(spec.GetTargetRef(), tags) {
 			continue
 		}
-		matchedPolicies = append(matchedPolicies, policy)
+		if err := matchedPolicies.AddItem(policy); err != nil {
+			return core_rules.FromRules{}, err
+		}
 	}
 
-	SortByTargetRef(matchedPolicies)
+	matchedPolicies = SortByTargetRef(matchedPolicies)
 
-	return core_rules.BuildFromRules(map[core_rules.InboundListener][]core_model.Resource{
+	return core_rules.BuildFromRules(map[core_rules.InboundListener]core_model.ResourceList{
 		{}: matchedPolicies, // egress always has only 1 listener, so we can use empty key
 	})
 }
@@ -126,10 +147,13 @@ func processFromRules(
 //	        disabled: true
 //
 // that's why processToRules() method produces FromRules for the Egress.
-func processToRules(tags map[string]string, policies []core_model.Resource) (core_rules.FromRules, error) {
-	var matchedPolicies []core_model.Resource
+func processToRules(tags map[string]string, policies core_model.ResourceList) (core_rules.FromRules, error) {
+	matchedPolicies, err := registry.Global().NewList(policies.GetItemType())
+	if err != nil {
+		return core_rules.FromRules{}, err
+	}
 
-	for _, policy := range policies {
+	for _, policy := range policies.GetItems() {
 		spec := policy.GetSpec().(core_model.Policy)
 
 		to, ok := spec.(core_model.PolicyWithToList)
@@ -139,15 +163,17 @@ func processToRules(tags map[string]string, policies []core_model.Resource) (cor
 
 		for _, item := range to.GetToList() {
 			if serviceSelectedByTargetRef(item.GetTargetRef(), tags) {
-				matchedPolicies = append(matchedPolicies, policy)
+				if err := matchedPolicies.AddItem(policy); err != nil {
+					return core_rules.FromRules{}, err
+				}
 			}
 		}
 	}
 
-	SortByTargetRef(matchedPolicies)
+	matchedPolicies = SortByTargetRef(matchedPolicies)
 
 	var toList []core_rules.PolicyItemWithMeta
-	for _, policy := range matchedPolicies {
+	for _, policy := range matchedPolicies.GetItems() {
 		toPolicy := policy.GetSpec().(core_model.PolicyWithToList)
 		for _, item := range toPolicy.GetToList() {
 			if !serviceSelectedByTargetRef(item.GetTargetRef(), tags) {
@@ -168,9 +194,19 @@ func processToRules(tags map[string]string, policies []core_model.Resource) (cor
 		return core_rules.FromRules{}, err
 	}
 
-	return core_rules.FromRules{Rules: map[core_rules.InboundListener]core_rules.Rules{
-		{}: rules,
-	}}, nil
+	return core_rules.FromRules{
+		Rules: map[core_rules.InboundListener]core_rules.Rules{{}: rules},
+	}, nil
+}
+
+func processToResourceRules(policies []core_model.Resource, resources xds_context.Resources) (core_rules.ToRules, error) {
+	resourceRules, err := outbound.BuildRules(policies, resources)
+	if err != nil {
+		return core_rules.ToRules{}, err
+	}
+	return core_rules.ToRules{
+		ResourceRules: resourceRules,
+	}, nil
 }
 
 type artificialPolicyItem struct {

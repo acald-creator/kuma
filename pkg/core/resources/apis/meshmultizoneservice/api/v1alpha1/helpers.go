@@ -2,8 +2,8 @@ package v1alpha1
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/kumahq/kuma/pkg/core/resources/apis/core"
 	core_vip "github.com/kumahq/kuma/pkg/core/resources/apis/core/vip"
 	meshservice_api "github.com/kumahq/kuma/pkg/core/resources/apis/meshservice/api/v1alpha1"
 	"github.com/kumahq/kuma/pkg/core/resources/model"
@@ -27,16 +27,23 @@ func (t *MeshMultiZoneServiceResource) AllocateVIP(vip string) {
 	})
 }
 
-func (m *MeshMultiZoneServiceResource) FindPort(port uint32) (meshservice_api.Port, bool) {
+func (m *MeshMultiZoneServiceResource) findPort(port uint32) (Port, bool) {
 	for _, p := range m.Spec.Ports {
 		if p.Port == port {
 			return p, true
 		}
 	}
-	return meshservice_api.Port{}, false
+	return Port{}, false
 }
 
-func (m *MeshMultiZoneServiceResource) FindPortByName(name string) (meshservice_api.Port, bool) {
+func (m *MeshMultiZoneServiceResource) FindSectionNameByPort(port uint32) (string, bool) {
+	if port, found := m.findPort(port); found {
+		return port.GetNameOrStringifyPort(), true
+	}
+	return "", false
+}
+
+func (m *MeshMultiZoneServiceResource) FindPortByName(name string) (Port, bool) {
 	for _, p := range m.Spec.Ports {
 		if p.Name == name {
 			return p, true
@@ -45,11 +52,12 @@ func (m *MeshMultiZoneServiceResource) FindPortByName(name string) (meshservice_
 			return p, true
 		}
 	}
-	return meshservice_api.Port{}, false
+	return Port{}, false
 }
 
 func (m *MeshMultiZoneServiceResource) DestinationName(port uint32) string {
-	return fmt.Sprintf("%s_mzsvc_%d", strings.ReplaceAll(m.GetMeta().GetName(), ".", "_"), port)
+	id := model.NewResourceIdentifier(m)
+	return fmt.Sprintf("%s_%s_%s_%s_%s_%d", id.Mesh, id.Name, id.Namespace, id.Zone, MeshMultiZoneServiceResourceTypeDescriptor.ShortName, port)
 }
 
 func (m *MeshMultiZoneServiceResource) AsOutbounds() xds_types.Outbounds {
@@ -59,7 +67,7 @@ func (m *MeshMultiZoneServiceResource) AsOutbounds() xds_types.Outbounds {
 			outbounds = append(outbounds, &xds_types.Outbound{
 				Address:  vip.IP,
 				Port:     port.Port,
-				Resource: pointer.To(model.NewTypedResourceIdentifier(m, model.WithSectionName(port.GetName()))),
+				Resource: pointer.To(model.NewTypedResourceIdentifier(m, model.WithSectionName(port.GetNameOrStringifyPort()))),
 			})
 		}
 	}
@@ -78,4 +86,27 @@ func (t *MeshMultiZoneServiceResource) Domains() *xds_types.VIPDomains {
 		}
 	}
 	return nil
+}
+
+func (t *MeshMultiZoneServiceResource) GetPorts() []core.Port {
+	var ports []core.Port
+	for _, port := range t.Spec.Ports {
+		ports = append(ports, core.Port(port))
+	}
+	return ports
+}
+
+func (p Port) GetNameOrStringifyPort() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return fmt.Sprintf("%d", p.Port)
+}
+
+func (p Port) GetName() string {
+	return p.Name
+}
+
+func (p Port) GetValue() uint32 {
+	return p.Port
 }

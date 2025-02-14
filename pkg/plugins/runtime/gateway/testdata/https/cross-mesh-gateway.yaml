@@ -7,11 +7,11 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       edsClusterConfig:
         edsConfig:
           ads: {}
-          initialFetchTimeout: 0s
           resourceApiVersion: V3
       name: echo-service-0ec9724567ed6087
       perConnectionBufferLimitBytes: 32768
@@ -56,11 +56,11 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       edsClusterConfig:
         edsConfig:
           ads: {}
-          initialFetchTimeout: 0s
           resourceApiVersion: V3
       name: echo-service-8acee1c4ccf209c2
       perConnectionBufferLimitBytes: 32768
@@ -105,11 +105,11 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       edsClusterConfig:
         edsConfig:
           ads: {}
-          initialFetchTimeout: 0s
           resourceApiVersion: V3
       name: echo-service-bfae5b64a0fe8b74
       perConnectionBufferLimitBytes: 32768
@@ -154,6 +154,7 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       dnsLookupFamily: V4_ONLY
       loadAssignment:
@@ -205,6 +206,7 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       dnsLookupFamily: V4_ONLY
       loadAssignment:
@@ -256,6 +258,7 @@ Clusters:
           maxPendingRequests: 1024
           maxRequests: 1024
           maxRetries: 3
+          trackRemaining: true
       connectTimeout: 5s
       dnsLookupFamily: V4_ONLY
       loadAssignment:
@@ -398,7 +401,6 @@ Listeners:
             rds:
               configSource:
                 ads: {}
-                initialFetchTimeout: 0s
                 resourceApiVersion: V3
               routeConfigName: edge-gateway:HTTP:8080:*
             requestHeadersTimeout: 0.500s
@@ -477,7 +479,6 @@ Listeners:
             rds:
               configSource:
                 ads: {}
-                initialFetchTimeout: 0s
                 resourceApiVersion: V3
               routeConfigName: edge-gateway:HTTP:8081:*
             requestHeadersTimeout: 0.500s
@@ -556,7 +557,6 @@ Listeners:
             rds:
               configSource:
                 ads: {}
-                initialFetchTimeout: 0s
                 resourceApiVersion: V3
               routeConfigName: edge-gateway:HTTP:8082:*
             requestHeadersTimeout: 0.500s

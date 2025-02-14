@@ -5,6 +5,7 @@ import (
 	core_model "github.com/kumahq/kuma/pkg/core/resources/model"
 	mtp_proto "github.com/kumahq/kuma/pkg/plugins/policies/meshtrafficpermission/api/v1alpha1"
 	test_model "github.com/kumahq/kuma/pkg/test/resources/model"
+	"github.com/kumahq/kuma/pkg/util/pointer"
 )
 
 type MeshTrafficPermissionBuilder struct {
@@ -34,17 +35,17 @@ func (m *MeshTrafficPermissionBuilder) WithMesh(mesh string) *MeshTrafficPermiss
 }
 
 func (m *MeshTrafficPermissionBuilder) WithTargetRef(targetRef common_api.TargetRef) *MeshTrafficPermissionBuilder {
-	m.res.Spec.TargetRef = targetRef
+	m.res.Spec.TargetRef = &targetRef
 	return m
 }
 
 func (m *MeshTrafficPermissionBuilder) AddFrom(targetRef common_api.TargetRef, action mtp_proto.Action) *MeshTrafficPermissionBuilder {
-	m.res.Spec.From = append(m.res.Spec.From, mtp_proto.From{
+	m.res.Spec.From = pointer.To(append(pointer.Deref(m.res.Spec.From), mtp_proto.From{
 		TargetRef: targetRef,
 		Default: mtp_proto.Conf{
-			Action: action,
+			Action: &action,
 		},
-	})
+	}))
 	return m
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/kumahq/kuma/test/e2e_env/universal/api"
 	"github.com/kumahq/kuma/test/e2e_env/universal/auth"
 	"github.com/kumahq/kuma/test/e2e_env/universal/compatibility"
+	"github.com/kumahq/kuma/test/e2e_env/universal/envoyconfig"
 	"github.com/kumahq/kuma/test/e2e_env/universal/externalservices"
 	"github.com/kumahq/kuma/test/e2e_env/universal/gateway"
 	"github.com/kumahq/kuma/test/e2e_env/universal/grpc"
@@ -26,6 +27,7 @@ import (
 	"github.com/kumahq/kuma/test/e2e_env/universal/meshratelimit"
 	"github.com/kumahq/kuma/test/e2e_env/universal/meshretry"
 	"github.com/kumahq/kuma/test/e2e_env/universal/meshservice"
+	"github.com/kumahq/kuma/test/e2e_env/universal/meshtls"
 	"github.com/kumahq/kuma/test/e2e_env/universal/meshtrafficpermission"
 	"github.com/kumahq/kuma/test/e2e_env/universal/mtls"
 	"github.com/kumahq/kuma/test/e2e_env/universal/observability"
@@ -106,4 +108,7 @@ var (
 	_ = Describe("MeshLoadBalancingStrategy", meshloadbalancingstrategy.Policy, Ordered)
 	_ = Describe("InterCP Server", intercp.InterCP, Ordered)
 	_ = Describe("Prometheus Metrics", observability.PrometheusMetrics, Ordered)
+	_ = Describe("MeshTLS", meshtls.Policy, Ordered)
+	_ = Describe("Envoy Config – Sidecars", envoyconfig.Sidecars, Ordered)
+	_ = Describe("Envoy Config – Builtin Gateway", envoyconfig.BuiltinGateway, Ordered)
 )

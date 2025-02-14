@@ -97,6 +97,9 @@ spec:
       {{- with .Values.controlPlane.topologySpreadConstraints }}
       topologySpreadConstraints: {{ tpl (toYaml . | nindent 8) $ }}
       {{- end }}
+      {{- with .Values.controlPlane.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       securityContext:
       {{- toYaml .Values.controlPlane.podSecurityContext | trim | nindent 8 }}
       serviceAccountName: {{ include "kuma.name" . }}-control-plane
@@ -111,6 +114,7 @@ spec:
       {{- end }}
       hostNetwork: {{ .Values.controlPlane.hostNetwork }}
       terminationGracePeriodSeconds: {{ .Values.controlPlane.terminationGracePeriodSeconds }}
+      {{ include "kuma.dnsConfig" (dict "dns" .Values.controlPlane.dns) | nindent 6 | trim }}
       {{- if (eq .Values.controlPlane.environment "universal") }}
       initContainers:
         - name: migration

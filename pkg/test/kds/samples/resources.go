@@ -8,6 +8,7 @@ import (
 	system_proto "github.com/kumahq/kuma/api/system/v1alpha1"
 	meshaccesslog "github.com/kumahq/kuma/pkg/plugins/policies/meshaccesslog/api/v1alpha1"
 	meshtrafficpermissions "github.com/kumahq/kuma/pkg/plugins/policies/meshtrafficpermission/api/v1alpha1"
+	"github.com/kumahq/kuma/pkg/util/pointer"
 	util_proto "github.com/kumahq/kuma/pkg/util/proto"
 )
 
@@ -375,25 +376,25 @@ var (
 		},
 	}
 	MeshTrafficPermission = &meshtrafficpermissions.MeshTrafficPermission{
-		TargetRef: common_api.TargetRef{
+		TargetRef: &common_api.TargetRef{
 			Kind: "Mesh",
 		},
-		From: []meshtrafficpermissions.From{
+		From: &[]meshtrafficpermissions.From{
 			{
 				TargetRef: common_api.TargetRef{
 					Kind: "Mesh",
 				},
 				Default: meshtrafficpermissions.Conf{
-					Action: "Allow",
+					Action: pointer.To[meshtrafficpermissions.Action]("Allow"),
 				},
 			},
 		},
 	}
 	MeshAccessLog = &meshaccesslog.MeshAccessLog{
-		TargetRef: common_api.TargetRef{
+		TargetRef: &common_api.TargetRef{
 			Kind: "Mesh",
 		},
-		From: []meshaccesslog.From{
+		From: &[]meshaccesslog.From{
 			{
 				TargetRef: common_api.TargetRef{
 					Kind: "Mesh",

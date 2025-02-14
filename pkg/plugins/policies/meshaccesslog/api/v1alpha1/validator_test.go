@@ -78,6 +78,19 @@ from:
     default:
       backends: []
 `),
+			Entry("MeshMultiZoneService", `
+targetRef:
+  kind: Mesh
+to:
+  - targetRef:
+      kind: MeshMultiZoneService
+      name: web-backend
+    default:
+      backends:
+        - type: File
+          file:
+            path: '/tmp/logs.txt'
+`),
 		)
 
 		type testCase struct {
@@ -109,7 +122,7 @@ targetRef:
 				expected: `
 violations:
   - field: spec
-    message: at least one of 'from', 'to' has to be defined`,
+    message: at least one of 'from', 'to' or 'rules' has to be defined`,
 			}),
 			Entry("empty 'path'", testCase{
 				inputYaml: `
@@ -250,6 +263,48 @@ violations:
 - field: spec.from[0].default.backends
   message: 'must be defined'`,
 			}),
+			Entry("sectionName with outbound policies", testCase{
+				inputYaml: `
+targetRef:
+  kind: Dataplane
+  sectionName: test
+to:
+  - targetRef:
+      kind: Mesh
+`,
+				expected: `
+violations:
+- field: spec.targetRef.sectionName
+  message: can only be used with inbound policies
+- field: spec.to[0].default.backends
+  message: must be defined`,
+			}),
+			Entry("don't mix from with rules", testCase{
+				inputYaml: `
+targetRef:
+  kind: Mesh
+from:
+  - targetRef:
+      kind: Mesh
+rules:
+  - default:
+      backends:
+        - type: Tcp
+          tcp:
+            format:
+              type: Json
+              json:
+                - key: "start_time"
+                  value: "%START_TIME%"
+            address: google.com
+`,
+				expected: `
+violations:
+- field: spec
+  message: fields 'to' and 'from' must be empty when 'rules' is defined
+- field: spec.from[0].default.backends
+  message: must be defined`,
+			}),
 			Entry("'address' not valid", testCase{
 				inputYaml: `
 targetRef:
@@ -384,6 +439,29 @@ violations:
   message: must be defined
 - field: spec.from[0].default.backends[1].tcp.format.json
   message: must be defined`,
+			}),
+			Entry("MeshGateway and invalid to kind", testCase{
+				inputYaml: `
+targetRef:
+  kind: MeshGateway
+  name: edge-gateway
+to:
+  - targetRef:
+      kind: MeshService
+      name: web-backend
+    default:
+      backends:
+        - type: File
+          file:
+           format:
+             type: Plain
+             plain: '{"start_time": "%START_TIME%"}'
+           path: '/tmp/logs.txt'
+`,
+				expected: `
+violations:
+- field: spec.to[0].targetRef.kind
+  message: value is not supported`,
 			}),
 		)
 	})

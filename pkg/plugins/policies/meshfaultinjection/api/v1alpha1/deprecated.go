@@ -1,12 +1,17 @@
 package v1alpha1
 
-import "github.com/kumahq/kuma/api/common/v1alpha1"
+import (
+	"github.com/kumahq/kuma/api/common/v1alpha1"
+	"github.com/kumahq/kuma/pkg/plugins/policies/core/jsonpatch/validators"
+	"github.com/kumahq/kuma/pkg/util/pointer"
+)
 
 func (t *MeshFaultInjectionResource) Deprecations() []string {
-	for _, f := range t.Spec.From {
+	deprecations := validators.TopLevelTargetRefDeprecations(t.Spec.TargetRef)
+	for _, f := range pointer.Deref(t.Spec.From) {
 		if f.GetTargetRef().Kind == v1alpha1.MeshService {
-			return []string{"MeshService value for 'from[].targetRef.kind' is deprecated, use MeshSubset with 'kuma.io/service' instead"}
+			deprecations = append(deprecations, "MeshService value for 'from[].targetRef.kind' is deprecated, use MeshSubset with 'kuma.io/service' instead")
 		}
 	}
-	return nil
+	return deprecations
 }
